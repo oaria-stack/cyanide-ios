@@ -1060,7 +1060,7 @@ static bool axn_request_bundle_and_title(uint64_t req, char *bundle, size_t bund
 
     uint64_t section = axn_ivar_value_cached(req, AXNIvarSectionIdentifier, "_sectionIdentifier");
     if (!r_is_objc_ptr(section)) section = axn_try_msg0(req, "sectionIdentifier");
-    if (!r_is_objc_ptr(section)) section = axn_try_msg0(req, "topLevelSectionIdentifier");
+    // topLevelSectionIdentifier can throw NSRangeException on transient requests.
     if (!r_is_objc_ptr(section)) section = axn_ivar_value_cached(req, AXNIvarParentSectionIdentifier, "_parentSectionIdentifier");
     if (!r_is_objc_ptr(section)) {
         uint64_t bulletin = axn_ivar_value_cached(req, AXNIvarBulletin, "_bulletin");

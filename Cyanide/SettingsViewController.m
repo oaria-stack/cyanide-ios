@@ -616,6 +616,32 @@ static void settings_request_all_live_loops_stop(const char *reason)
     }
 }
 
+static void settings_wait_live_loops_stopped_for_switch(const char *reason)
+{
+    uint64_t startUS = settings_now_us();
+    BOOL logged = NO;
+    while (g_statbar_live_running || g_rssi_live_running || g_axonlite_live_running) {
+        uint64_t nowUS = settings_now_us();
+        uint64_t elapsedUS = (startUS != 0 && nowUS >= startUS) ? nowUS - startUS : 0;
+        if (!logged) {
+            printf("[SETTINGS] waiting for live RemoteCall loops to stop%s%s\n",
+                   reason ? ": " : "", reason ?: "");
+            logged = YES;
+        }
+        if (elapsedUS >= 2000000ULL) {
+            printf("[SETTINGS] live loop stop wait timed out%s%s stat=%d rssi=%d axon=%d\n",
+                   reason ? ": " : "", reason ?: "",
+                   g_statbar_live_running, g_rssi_live_running, g_axonlite_live_running);
+            break;
+        }
+        usleep(50000);
+    }
+    if (logged && !g_statbar_live_running && !g_rssi_live_running && !g_axonlite_live_running) {
+        printf("[SETTINGS] live RemoteCall loops stopped%s%s\n",
+               reason ? ": " : "", reason ?: "");
+    }
+}
+
 static void settings_live_loop_sleep_interruptible(uint64_t targetUS,
                                                   useconds_t fallbackUS,
                                                   volatile int *stopFlag)
@@ -821,7 +847,7 @@ static BOOL settings_ensure_springboard_remote_call_locked(void)
     return YES;
 }
 
-static void settings_destroy_springboard_remote_call_locked(const char *reason)
+static void settings_destroy_springboard_remote_call_locked_internal(const char *reason, BOOL notifyState)
 {
     if (!g_springboard_rc_ready) return;
 
@@ -830,7 +856,12 @@ static void settings_destroy_springboard_remote_call_locked(const char *reason)
     destroy_remote_call();
     g_springboard_rc_ready = 0;
     g_springboard_sandbox_escaped = 0;
-    settings_notify_remote_call_state_changed();
+    if (notifyState) settings_notify_remote_call_state_changed();
+}
+
+static void settings_destroy_springboard_remote_call_locked(const char *reason)
+{
+    settings_destroy_springboard_remote_call_locked_internal(reason, YES);
 }
 
 static void settings_prepare_for_respring_sync(void)
@@ -1200,6 +1231,7 @@ static void settings_start_statbar_live_loop(void)
                 bool ok = false;
 
                 @synchronized (settings_rc_lock()) {
+                    if (g_statbar_live_stop_requested) break;
                     if (!g_springboard_rc_ready) {
                         printf("[SETTINGS] StatBar loop has no SpringBoard RemoteCall session\n");
                         failures++;
@@ -1375,6 +1407,7 @@ static void settings_start_rssi_live_loop(void)
                 bool ok = false;
 
                 @synchronized (settings_rc_lock()) {
+                    if (g_rssi_live_stop_requested) break;
                     if (!g_springboard_rc_ready) {
                         printf("[SETTINGS] RSSI loop has no SpringBoard RemoteCall session\n");
                         failures++;
@@ -1543,6 +1576,7 @@ static void settings_start_axonlite_live_loop(void)
                 bool ok = false;
 
                 @synchronized (settings_rc_lock()) {
+                    if (g_axonlite_live_stop_requested) break;
                     if (!g_springboard_rc_ready) {
                         printf("[SETTINGS] Axon Lite loop has no SpringBoard RemoteCall session\n");
                         failures++;
@@ -2080,13 +2114,18 @@ void settings_run_actions(void)
 
             if (runPowercuff) {
                 settings_progress(&step, total, "Applying Powercuff via thermalmonitord");
+                if (g_springboard_rc_ready ||
+                    g_statbar_live_running ||
+                    g_rssi_live_running ||
+                    g_axonlite_live_running) {
+                    settings_request_all_live_loops_stop("Powercuff process switch");
+                    settings_wait_live_loops_stopped_for_switch("Powercuff process switch");
+                }
                 @synchronized (settings_rc_lock()) {
-                    if (g_springboard_rc_ready) {
-                        settings_request_all_live_loops_stop("Powercuff process switch");
-                        settings_stop_axonlite_then_forget_locked("Powercuff process switch");
-                        rssidisplay_forget_remote_state();
-                    }
-                    settings_destroy_springboard_remote_call_locked("switching to thermalmonitord");
+                    // This is only a transient RemoteCall target switch. Do
+                    // not run SpringBoard tweak stop paths or clear applied
+                    // package state; enabled tweaks are reapplied below.
+                    settings_destroy_springboard_remote_call_locked_internal("switching to thermalmonitord", NO);
                     NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"heavy";
                     bool ok = powercuff_apply(lvl.UTF8String);
                     settings_mark_tweak_applied(kSettingsPowercuffEnabled,

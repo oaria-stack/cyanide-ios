@@ -454,10 +454,13 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
                                               reuseIdentifier:@"InfoCell"];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             }
-            NSArray<NSString *> *row = [self currentInfoRows][indexPath.row];
-            cell.textLabel.text = row[0];
-            cell.detailTextLabel.text = row[1];
-            cell.detailTextLabel.textColor = ([self isOTAPackage] && [row[0] isEqualToString:@"State"])
+            NSArray<NSArray<NSString *> *> *rows = [self currentInfoRows];
+            NSArray<NSString *> *row = indexPath.row < (NSInteger)rows.count ? rows[indexPath.row] : @[];
+            NSString *label = row.count > 0 ? row[0] : @"";
+            NSString *value = row.count > 1 ? row[1] : @"";
+            cell.textLabel.text = label;
+            cell.detailTextLabel.text = value;
+            cell.detailTextLabel.textColor = ([self isOTAPackage] && [label isEqualToString:@"State"])
                 ? [self otaStateColor]
                 : UIColor.secondaryLabelColor;
             cell.detailTextLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
