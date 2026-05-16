@@ -259,6 +259,18 @@ static NSString * const kGroupByCategoryDefault = @"installer.groupByCategory";
 - (UIView *)accessoryViewForPackage:(Package *)pkg
 {
     PackageQueueIntent intent = [[PackageQueue sharedQueue] intentForPackage:pkg];
+    if (pkg.kind == PackageInstallKindOTA) {
+        if (intent != PackageQueueIntentNone) {
+            NSString *text = (intent == PackageQueueIntentInstall) ? @"DISABLE QUEUED" : @"ENABLE QUEUED";
+            UIColor *color = self.view.tintColor;
+            return [self pillWithText:text
+                           background:[color colorWithAlphaComponent:0.18]
+                            textColor:color];
+        }
+        return [self pillWithText:@"MANUAL"
+                       background:[UIColor.secondaryLabelColor colorWithAlphaComponent:0.14]
+                        textColor:UIColor.secondaryLabelColor];
+    }
     if (intent != PackageQueueIntentNone) {
         NSString *text = (intent == PackageQueueIntentInstall) ? @"Queued" : @"Removing";
         UIColor *color = self.view.tintColor;
@@ -326,6 +338,31 @@ static NSString * const kGroupByCategoryDefault = @"installer.groupByCategory";
     PackageQueue *q = [PackageQueue sharedQueue];
     PackageQueueIntent intent = [q intentForPackage:pkg];
     if (pkg.isInstallDisabled && !pkg.isInstalled && intent == PackageQueueIntentNone) return nil;
+
+    if (pkg.kind == PackageInstallKindOTA && intent == PackageQueueIntentNone) {
+        UIContextualAction *disable = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleDestructive
+                                title:@"Disable"
+                              handler:^(UIContextualAction *a, UIView *v, void (^done)(BOOL)) {
+            [q queueIntent:PackageQueueIntentInstall forPackage:pkg];
+            done(YES);
+        }];
+        disable.image = [UIImage systemImageNamed:@"icloud.slash"];
+
+        UIContextualAction *enable = [UIContextualAction
+            contextualActionWithStyle:UIContextualActionStyleNormal
+                                title:@"Enable"
+                              handler:^(UIContextualAction *a, UIView *v, void (^done)(BOOL)) {
+            [q queueIntent:PackageQueueIntentUninstall forPackage:pkg];
+            done(YES);
+        }];
+        enable.backgroundColor = UIColor.systemGreenColor;
+        enable.image = [UIImage systemImageNamed:@"icloud"];
+
+        UISwipeActionsConfiguration *cfg = [UISwipeActionsConfiguration configurationWithActions:@[disable, enable]];
+        cfg.performsFirstActionWithFullSwipe = NO;
+        return cfg;
+    }
 
     NSString *title;
     UIColor *color;

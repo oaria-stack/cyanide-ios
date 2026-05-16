@@ -82,6 +82,17 @@ NSString * const PackageQueueDidChangeNotification = @"PackageQueueDidChangeNoti
     [self notifyChange];
 }
 
+- (void)queueIntent:(PackageQueueIntent)intent forPackage:(Package *)package
+{
+    [self removePackage:package];
+    if (intent == PackageQueueIntentInstall) {
+        [self.installs addObject:package];
+    } else if (intent == PackageQueueIntentUninstall) {
+        [self.uninstalls addObject:package];
+    }
+    [self notifyChange];
+}
+
 - (void)removePackage:(Package *)package
 {
     Package *match = [self packageInArray:self.installs matching:package];
@@ -112,6 +123,21 @@ NSString * const PackageQueueDidChangeNotification = @"PackageQueueDidChangeNoti
 {
     NSArray<Package *> *toInstall   = self.queuedInstalls;
     NSArray<Package *> *toUninstall = self.queuedUninstalls;
+    BOOL needsRunActions = NO;
+    for (Package *pkg in toInstall) {
+        if (pkg.kind != PackageInstallKindOTA) {
+            needsRunActions = YES;
+            break;
+        }
+    }
+    if (!needsRunActions) {
+        for (Package *pkg in toUninstall) {
+            if (pkg.kind != PackageInstallKindOTA) {
+                needsRunActions = YES;
+                break;
+            }
+        }
+    }
 
     for (Package *pkg in toInstall)   [pkg applyCommittedState:YES];
     for (Package *pkg in toUninstall) [pkg applyCommittedState:NO];
@@ -120,7 +146,14 @@ NSString * const PackageQueueDidChangeNotification = @"PackageQueueDidChangeNoti
     [self.uninstalls removeAllObjects];
     [self notifyChange];
 
-    settings_run_actions();
+    if (needsRunActions) {
+        settings_run_actions();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter] postNotificationName:kSettingsActionsDidCompleteNotification
+                                                                object:nil];
+        });
+    }
 }
 
 - (void)notifyChange

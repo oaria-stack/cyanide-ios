@@ -91,22 +91,57 @@ int check_sandbox_var_rw(void) {
 }
 
 int borrow_sandbox_ext(const char* process) {
-    //
+    if (!process) return -1;
+
+    uint64_t victim_proc = proc_find_by_name(process);
+    if (!victim_proc || victim_proc == (uint64_t)-1 || !is_kaddr_valid(victim_proc)) {
+        printf("borrow_sandbox_ext: process not found: %s proc=0x%llx\n",
+               process, victim_proc);
+        return -1;
+    }
+
     uint64_t self_label = proc_get_cred_label(proc_self());
+    if (!self_label || !is_kaddr_valid(self_label)) {
+        printf("borrow_sandbox_ext: invalid self label=0x%llx\n", self_label);
+        return -1;
+    }
     uint64_t self_sbx = label_get_sandbox(self_label);
+    if (!self_sbx || !is_kaddr_valid(self_sbx)) {
+        printf("borrow_sandbox_ext: invalid self sandbox=0x%llx\n", self_sbx);
+        return -1;
+    }
     
     struct sandbox_label self_sbx_lbl = {0};
     kreadbuf(self_sbx, &self_sbx_lbl, sizeof(struct sandbox_label));
     uint64_t self_ext_set_kptr = (uint64_t)self_sbx_lbl.extension_set;
     printf("self_sbx_lbl->ext_set = 0x%llx\n", self_ext_set_kptr);
+    if (!self_ext_set_kptr || !is_kaddr_valid(self_ext_set_kptr)) {
+        printf("borrow_sandbox_ext: invalid self extension set=0x%llx\n", self_ext_set_kptr);
+        return -1;
+    }
 
-    uint64_t victim_label = proc_get_cred_label(proc_find_by_name(process));
+    uint64_t victim_label = proc_get_cred_label(victim_proc);
+    if (!victim_label || !is_kaddr_valid(victim_label)) {
+        printf("borrow_sandbox_ext: invalid victim label for %s label=0x%llx\n",
+               process, victim_label);
+        return -1;
+    }
     uint64_t victim_sbx = label_get_sandbox(victim_label);
+    if (!victim_sbx || !is_kaddr_valid(victim_sbx)) {
+        printf("borrow_sandbox_ext: invalid victim sandbox for %s sandbox=0x%llx\n",
+               process, victim_sbx);
+        return -1;
+    }
     
     struct sandbox_label victim_sbx_lbl = {0};
     kreadbuf(victim_sbx, &victim_sbx_lbl, sizeof(struct sandbox_label));
     uint64_t victim_ext_set_kptr = (uint64_t)victim_sbx_lbl.extension_set;
     printf("victim_sbx_lbl->ext_set = 0x%llx\n", victim_ext_set_kptr);
+    if (!victim_ext_set_kptr || !is_kaddr_valid(victim_ext_set_kptr)) {
+        printf("borrow_sandbox_ext: invalid victim extension set for %s ext=0x%llx\n",
+               process, victim_ext_set_kptr);
+        return -1;
+    }
     
     
     struct extension_set self_ext_set = {0};

@@ -842,8 +842,10 @@ static void settings_prepare_for_respring_sync(void)
 
     @synchronized (settings_rc_lock()) {
         if (g_springboard_rc_ready) {
-            bool axonStopped = axonlite_stop_in_session();
-            printf("[SETTINGS] pre-respring Axon Lite stop result=%d\n", axonStopped);
+            // SB is about to be killed by the respring — skip the
+            // restore/release loops since they're all wasted RC traffic.
+            bool axonStopped = axonlite_stop_in_session_fast();
+            printf("[SETTINGS] pre-respring Axon Lite stop (fast) result=%d\n", axonStopped);
             bool stopped = statbar_stop_in_session();
             printf("[SETTINGS] pre-respring StatBar stop result=%d\n", stopped);
             bool rssiStopped = rssidisplay_stop_in_session();
@@ -1092,39 +1094,46 @@ static void settings_reset_sbc_defaults(void)
     });
 }
 
+static bool settings_apply_ota_disabled_body(BOOL disable)
+{
+    if (!settings_ensure_kexploit()) {
+        printf("[OTA] kernel primitives were not acquired\n");
+        log_user("[OTA] Failed: kernel primitives were not acquired.\n");
+        return false;
+    }
+
+    bool ok = darksword_ota_set_disabled(disable);
+
+    settings_notify_package_queue_changed_async();
+    return ok;
+}
+
+BOOL settings_apply_ota_disabled(BOOL disable)
+{
+    if (__sync_lock_test_and_set(&g_settings_actions_running, 1)) {
+        printf("[SETTINGS] actions already running; ignoring OTA request\n");
+        log_user("[OTA] Another action is already running.\n");
+        return NO;
+    }
+    @try {
+        return settings_apply_ota_disabled_body(disable);
+    } @finally {
+        __sync_lock_release(&g_settings_actions_running);
+    }
+}
+
 static void settings_run_ota_action(BOOL disable)
 {
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
-        if (__sync_lock_test_and_set(&g_settings_actions_running, 1)) {
-            printf("[SETTINGS] actions already running; ignoring OTA request\n");
-            log_user("[OTA] Another action is already running.\n");
-            return;
-        }
-        @try {
-            log_user("[OTA] %s OTA updates.\n", disable ? "Disabling" : "Enabling");
-            if (!settings_ensure_kexploit()) {
-                log_user("[OTA] Failed: kernel primitives were not acquired.\n");
-                return;
-            }
-
-            settings_request_all_live_loops_stop("switching to launchd for OTA");
-            settings_end_statbar_background_task_async("switching to launchd for OTA");
-
-            @synchronized (settings_rc_lock()) {
-                if (g_springboard_rc_ready) {
-                    axonlite_stop_in_session();
-                    rssidisplay_stop_in_session();
-                }
-                settings_destroy_springboard_remote_call_locked(disable ? "switching to launchd for OTA disable" :
-                                                                         "switching to launchd for OTA enable");
-                bool ok = darksword_ota_set_disabled(disable);
-                printf("[SETTINGS] OTA %s result=%d\n", disable ? "disable" : "enable", ok);
-                log_user("%s OTA updates %s. Reboot or userspace restart is still required.\n",
-                         ok ? "[OK]" : "[WARN]",
-                         disable ? "disabled" : "enabled");
-            }
-        } @finally {
-            __sync_lock_release(&g_settings_actions_running);
+        log_user("[OTA] %s OTA updates.\n", disable ? "Disabling" : "Enabling");
+        bool ok = settings_apply_ota_disabled(disable);
+        printf("[SETTINGS] OTA %s result=%d\n", disable ? "disable" : "enable", ok);
+        if (ok) {
+            log_user("[OK] OTA updates %s. Respring or reboot required for changes to take effect.\n",
+                     disable ? "disabled" : "enabled");
+        } else {
+            log_user("[FAIL] OTA %s failed — see log for [OTA] lines (likely sandbox patch or disabled.plist write).\n",
+                     disable ? "disable" : "enable");
         }
     });
 }
@@ -2453,7 +2462,10 @@ typedef NS_ENUM(NSInteger, RootSection) {
 
 - (NSArray<NSDictionary *> *)otaRows
 {
-    return @[];
+    return @[
+        @{ @"kind": @"button", @"title": @"Disable OTA Updates" },
+        @{ @"kind": @"button", @"title": @"Enable OTA Updates" },
+    ];
 }
 
 - (NSArray<NSDictionary *> *)darkSwordTweakRows

@@ -46,6 +46,7 @@ BOOL settings_tweak_is_applied(NSString *key);
 
 void settings_register_defaults(void);
 BOOL settings_device_supported(void);
+BOOL settings_apply_ota_disabled(BOOL disabled);
 void settings_run_actions(void);
 void settings_destroy_springboard_remote_call(void);
 void settings_destroy_springboard_remote_call_sync(void);

@@ -3282,6 +3282,26 @@ bool axonlite_stop_in_session(void)
     return true;
 }
 
+bool axonlite_stop_in_session_fast(void)
+{
+    // Fast path used when SpringBoard is about to die (respring, OTA toggle).
+    // Skip the per-request _insertNotificationRequest: restore and per-object
+    // release loops — both are wasted work since SB will reload everything
+    // from the bulletin service and discard refcounts on death.
+    int hidden = 0;
+    for (int i = 0; i < gAxonRequestCount; i++) {
+        if (gAxonRequests[i].hiddenByAxon) hidden++;
+    }
+    int retained = 0;
+    for (int i = 0; i < gAxonRequestCount; i++) {
+        if (gAxonRequests[i].retained) retained++;
+    }
+    printf("[AXONLITE] stopped (fast) hiddenSkipped=%d releasesSkipped=%d iconsSkipped=%d\n",
+           hidden, retained, gAxonIconCacheCount);
+    axonlite_forget_remote_state();
+    return true;
+}
+
 void axonlite_forget_remote_state(void)
 {
     memset(gAxonRequests, 0, sizeof(gAxonRequests));

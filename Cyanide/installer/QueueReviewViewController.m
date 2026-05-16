@@ -185,10 +185,17 @@ typedef NS_ENUM(NSInteger, QueueReviewSection) {
 {
     NSArray<Package *> *list = [self packagesForSection:section];
     if (list.count == 0) return nil;
+    BOOL allOTA = YES;
+    for (Package *pkg in list) {
+        if (pkg.kind != PackageInstallKindOTA) {
+            allOTA = NO;
+            break;
+        }
+    }
     NSString *label;
     switch ((QueueReviewSection)section) {
-        case QueueReviewSectionInstall:   label = @"Install";          break;
-        case QueueReviewSectionUninstall: label = @"Uninstall";        break;
+        case QueueReviewSectionInstall:   label = allOTA ? @"Disable" : @"Install";    break;
+        case QueueReviewSectionUninstall: label = allOTA ? @"Enable" : @"Uninstall";   break;
         case QueueReviewSectionReApply:   label = @"Will Re-Apply";    break;
         default:                          return nil;
     }
@@ -215,12 +222,12 @@ typedef NS_ENUM(NSInteger, QueueReviewSection) {
     QueueReviewSection s = (QueueReviewSection)indexPath.section;
     switch (s) {
         case QueueReviewSectionInstall:
-            cell.detailTextLabel.text = @"Pending install";
-            cell.detailTextLabel.textColor = UIColor.systemGreenColor;
+            cell.detailTextLabel.text = (pkg.kind == PackageInstallKindOTA) ? @"Pending OTA disable" : @"Pending install";
+            cell.detailTextLabel.textColor = (pkg.kind == PackageInstallKindOTA) ? UIColor.systemOrangeColor : UIColor.systemGreenColor;
             break;
         case QueueReviewSectionUninstall:
-            cell.detailTextLabel.text = @"Pending removal";
-            cell.detailTextLabel.textColor = UIColor.systemRedColor;
+            cell.detailTextLabel.text = (pkg.kind == PackageInstallKindOTA) ? @"Pending OTA enable" : @"Pending removal";
+            cell.detailTextLabel.textColor = (pkg.kind == PackageInstallKindOTA) ? UIColor.systemGreenColor : UIColor.systemRedColor;
             break;
         case QueueReviewSectionReApply:
             cell.detailTextLabel.text = @"Installed; will re-apply";

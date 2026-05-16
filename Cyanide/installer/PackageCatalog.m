@@ -156,9 +156,9 @@ static const NSInteger kSecPowercuff = 8;
                                           isNew:NO],
 
             [[Package alloc] initWithIdentifier:@"com.darksword.ota-block"
-                                           name:@"Disable OTA Updates"
-                               shortDescription:@"Block over-the-air system updates"
-                                longDescription:@"Disables the launchd jobs responsible for over-the-air system updates by editing disabled.plist. State persists across reboots. Uninstall to re-enable the jobs.\n\nNo Run/Apply step required — the change takes effect immediately."
+                                           name:@"OTA Updates"
+                               shortDescription:@"Enable or disable over-the-air system updates"
+                                longDescription:@"Disables or enables the launchd jobs responsible for over-the-air system updates by editing disabled.plist. State persists across reboots.\n\nNo Run/Apply step required for this package. Use Disable to block OTA updates, or Enable to restore them."
                                         version:version
                                          author:@"kolbicz"
                                        category:@"System Updates"

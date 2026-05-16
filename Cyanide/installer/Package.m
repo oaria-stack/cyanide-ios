@@ -6,9 +6,7 @@
 #import "Package.h"
 #import "PackageQueue.h"
 #import "../SettingsViewController.h"
-#import "../tweaks/darksword_ota.h"
-
-NSString * const kInstallerOTADisabledIntent = @"installer.ota.disabledIntent";
+#import "../LogTextView.h"
 
 @implementation Package
 
@@ -53,9 +51,7 @@ NSString * const kInstallerOTADisabledIntent = @"installer.ota.disabledIntent";
             if (![d boolForKey:self.enabledKey]) return NO;
             return settings_tweak_is_applied(self.enabledKey);
         case PackageInstallKindOTA:
-            // OTA edits launchd disabled.plist which persists across reboots,
-            // so the intent flag IS the actual state.
-            return [d boolForKey:kInstallerOTADisabledIntent];
+            return NO;
     }
 }
 
@@ -88,9 +84,12 @@ NSString * const kInstallerOTADisabledIntent = @"installer.ota.disabledIntent";
             }
             return;
         case PackageInstallKindOTA:
-            darksword_ota_set_disabled(installed ? true : false);
-            [d setBool:installed forKey:kInstallerOTADisabledIntent];
-            [d synchronize];
+            if (settings_apply_ota_disabled(installed)) {
+                log_user("[INSTALLER] OTA updates %s.\n", installed ? "disabled" : "enabled");
+            } else {
+                log_user("[INSTALLER] OTA %s failed; install state was not changed.\n",
+                         installed ? "disable" : "enable");
+            }
             return;
     }
 }

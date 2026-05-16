@@ -27,6 +27,68 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 
 @implementation PackageDetailViewController
 
+- (BOOL)isOTAPackage
+{
+    return self.package.kind == PackageInstallKindOTA;
+}
+
+- (NSString *)otaActionTitleForIntent:(PackageQueueIntent)intent installed:(BOOL)installed
+{
+    if (intent == PackageQueueIntentInstall) return @"Cancel Disable";
+    if (intent == PackageQueueIntentUninstall) return @"Cancel Enable";
+    return @"Disable/Enable";
+}
+
+- (NSString *)otaStateText
+{
+    PackageQueueIntent intent = [[PackageQueue sharedQueue] intentForPackage:self.package];
+    if (intent == PackageQueueIntentInstall) return @"Disable Queued";
+    if (intent == PackageQueueIntentUninstall) return @"Enable Queued";
+    return @"Manual Control";
+}
+
+- (UIColor *)otaStateColor
+{
+    PackageQueueIntent intent = [[PackageQueue sharedQueue] intentForPackage:self.package];
+    if (intent != PackageQueueIntentNone) return self.view.tintColor;
+    return UIColor.secondaryLabelColor;
+}
+
+- (NSArray<NSArray<NSString *> *> *)currentInfoRows
+{
+    if (![self isOTAPackage]) return self.infoRows;
+    NSMutableArray<NSArray<NSString *> *> *rows = [self.infoRows mutableCopy];
+    [rows addObject:@[@"State", [self otaStateText]]];
+    return rows;
+}
+
+- (void)queueOTASetDisabled:(BOOL)disabled
+{
+    PackageQueueIntent intent = disabled ? PackageQueueIntentInstall : PackageQueueIntentUninstall;
+    log_user("[INSTALLER] Queued OTA %s\n", disabled ? "disable" : "enable");
+    [[PackageQueue sharedQueue] queueIntent:intent forPackage:self.package];
+}
+
+- (UIMenu *)otaActionMenu
+{
+    UIAction *disable = [UIAction actionWithTitle:@"Disable OTA Updates"
+                                            image:[UIImage systemImageNamed:@"icloud.slash"]
+                                       identifier:nil
+                                          handler:^(__kindof UIAction *_) {
+        [self queueOTASetDisabled:YES];
+    }];
+    disable.attributes = UIMenuElementAttributesDestructive;
+
+    UIAction *enable = [UIAction actionWithTitle:@"Enable OTA Updates"
+                                           image:[UIImage systemImageNamed:@"icloud"]
+                                      identifier:nil
+                                         handler:^(__kindof UIAction *_) {
+        [self queueOTASetDisabled:NO];
+    }];
+
+    return [UIMenu menuWithTitle:@"OTA Updates" children:@[disable, enable]];
+}
+
 - (instancetype)initWithPackage:(Package *)package
 {
     if ((self = [super initWithStyle:UITableViewStyleInsetGrouped])) {
@@ -91,6 +153,7 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 {
     [super viewWillAppear:animated];
     self.settingsSummary = [SettingsViewController settingsSummaryForSection:self.package.settingsSection];
+    self.tableView.tableHeaderView = [self buildHeaderView];
     [self.tableView reloadData];
     [self updateActionButton];
 }
@@ -98,6 +161,7 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 - (void)queueDidChange:(NSNotification *)note
 {
     if (!self.isViewLoaded) return;
+    self.tableView.tableHeaderView = [self buildHeaderView];
     [self.tableView reloadData];
     [self updateActionButton];
 }
@@ -139,7 +203,14 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 
     // Status badge (optional)
     UIView *badge = nil;
-    if (self.package.isInstallDisabled) {
+    if ([self isOTAPackage]) {
+        UIColor *color = [self otaStateColor];
+        badge = [self badgeWithText:[self otaStateText].uppercaseString
+                         background:[color colorWithAlphaComponent:0.16]
+                          textColor:color];
+        badge.translatesAutoresizingMaskIntoConstraints = NO;
+        [header addSubview:badge];
+    } else if (self.package.isInstallDisabled) {
         badge = [self badgeWithText:@"BUGGY"
                          background:[UIColor.systemRedColor colorWithAlphaComponent:0.16]
                           textColor:UIColor.systemRedColor];
@@ -205,7 +276,13 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
     NSString *title;
     UIBarButtonItemStyle style = UIBarButtonItemStylePlain;
     UIColor *tint = nil;
-    if (intent != PackageQueueIntentNone) {
+    if ([self isOTAPackage]) {
+        title = [self otaActionTitleForIntent:intent installed:installed];
+        tint = (intent != PackageQueueIntentNone)
+            ? UIColor.secondaryLabelColor
+            : self.view.tintColor;
+        if (intent == PackageQueueIntentNone) style = UIBarButtonItemStyleDone;
+    } else if (intent != PackageQueueIntentNone) {
         title = @"Queued";
         tint = UIColor.secondaryLabelColor;
     } else if (installed) {
@@ -221,8 +298,11 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 
     UIBarButtonItem *item = [[UIBarButtonItem alloc] initWithTitle:title
                                                              style:style
-                                                            target:self
-                                                            action:@selector(didTapAction)];
+                                                            target:([self isOTAPackage] && intent == PackageQueueIntentNone) ? nil : self
+                                                            action:([self isOTAPackage] && intent == PackageQueueIntentNone) ? nil : @selector(didTapAction)];
+    if ([self isOTAPackage] && intent == PackageQueueIntentNone) {
+        item.menu = [self otaActionMenu];
+    }
     if (tint) item.tintColor = tint;
     item.enabled = !self.package.isInstallDisabled || installed || intent != PackageQueueIntentNone;
     self.navigationItem.rightBarButtonItem = item;
@@ -245,7 +325,9 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
         [self promptConfigureBeforeInstall];
         return;
     }
-    if (self.package.isInstalled) {
+    if ([self isOTAPackage]) {
+        return;
+    } else if (self.package.isInstalled) {
         log_user("[INSTALLER] Queued uninstall: %s\n", self.package.name.UTF8String);
     } else {
         log_user("[INSTALLER] Queued install: %s\n", self.package.name.UTF8String);
@@ -289,7 +371,7 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
 {
     switch ([self sectionAtIndex:section]) {
         case PackageDetailSectionWarning:     return 1;
-        case PackageDetailSectionInfo:        return (NSInteger)self.infoRows.count;
+        case PackageDetailSectionInfo:        return (NSInteger)[self currentInfoRows].count;
         case PackageDetailSectionAction:      return 1;
         case PackageDetailSectionSettings:    return (NSInteger)self.settingsSummary.count;
         case PackageDetailSectionDescription: return 1;
@@ -372,9 +454,12 @@ typedef NS_ENUM(NSInteger, PackageDetailSection) {
                                               reuseIdentifier:@"InfoCell"];
                 cell.selectionStyle = UITableViewCellSelectionStyleNone;
             }
-            NSArray<NSString *> *row = self.infoRows[indexPath.row];
+            NSArray<NSString *> *row = [self currentInfoRows][indexPath.row];
             cell.textLabel.text = row[0];
             cell.detailTextLabel.text = row[1];
+            cell.detailTextLabel.textColor = ([self isOTAPackage] && [row[0] isEqualToString:@"State"])
+                ? [self otaStateColor]
+                : UIColor.secondaryLabelColor;
             cell.detailTextLabel.lineBreakMode = NSLineBreakByTruncatingMiddle;
             return cell;
         }

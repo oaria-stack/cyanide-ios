@@ -38,6 +38,7 @@ typedef NS_ENUM(NSInteger, PackageQueueIntent) {
 //   installed     + queued      → cancel queue
 - (void)toggleForPackage:(Package *)package;
 
+- (void)queueIntent:(PackageQueueIntent)intent forPackage:(Package *)package;
 - (void)removePackage:(Package *)package;
 - (void)clear;
 
