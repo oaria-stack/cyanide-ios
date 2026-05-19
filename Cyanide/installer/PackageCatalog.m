@@ -91,18 +91,18 @@ static const NSInteger kSecNanoRegistry = 11;
                                           isNew:YES];
         axon.unstableWarning = @"Heavily buggy work-in-progress. Expect SpringBoard crashes, dropped notifications, layout glitches, and breakage between Cyanide builds. Don't rely on it for anything important.";
 
-        Package *typeBanner = [[Package alloc] initWithIdentifier:@"com.darksword.typebanner"
-                                           name:@"TypeBanner"
-                               shortDescription:@"iMessage typing banner under the Dynamic Island"
-                                longDescription:@"Port of TypeMillennium. Shows a pill banner just below the Dynamic Island whenever the active Messages conversation list shows a typing indicator.\n\nv1 limitation: detection runs against the Messages app's own view hierarchy via RemoteCall, so it only fires while Messages.app is running. The original tweak's system-wide imagent hook requires code injection, which is not available in this sandboxed environment without a code-signing bypass.\n\nNo extra configuration."
-                                        version:version
-                                         author:@"zeroxjf"
-                                       category:@"Beta"
-                                     symbolName:@"ellipsis.bubble.fill"
-                                           kind:PackageInstallKindToggle
-                                     enabledKey:kSettingsTypeBannerEnabled
-                                          isNew:YES];
-        typeBanner.unstableWarning = @"Detection is MobileSMS-only — typing events fire only while Messages.app is running. Polling Messages over RemoteCall every ~1.5s; battery cost is non-trivial.";
+        // Package *typeBanner = [[Package alloc] initWithIdentifier:@"com.darksword.typebanner"
+        //                                    name:@"TypeBanner"
+        //                        shortDescription:@"iMessage typing banner under the Dynamic Island"
+        //                         longDescription:@"Port of TypeMillennium. Shows a pill banner just below the Dynamic Island whenever the active Messages conversation list shows a typing indicator.\n\nv1 limitation: detection runs against the Messages app's own view hierarchy via RemoteCall, so it only fires while Messages.app is running. The original tweak's system-wide imagent hook requires code injection, which is not available in this sandboxed environment without a code-signing bypass.\n\nNo extra configuration."
+        //                                 version:version
+        //                                  author:@"zeroxjf"
+        //                                category:@"Beta"
+        //                              symbolName:@"ellipsis.bubble.fill"
+        //                                    kind:PackageInstallKindToggle
+        //                              enabledKey:kSettingsTypeBannerEnabled
+        //                                   isNew:YES];
+        // typeBanner.unstableWarning = @"Detection is MobileSMS-only — typing events fire only while Messages.app is running. Polling Messages over RemoteCall every ~1.5s; battery cost is non-trivial.";
 
         Package *nanoRegistry = [[Package alloc] initWithIdentifier:@"com.darksword.nanoregistry"
                                            name:@"Watch Pairing Override"
@@ -199,7 +199,7 @@ static const NSInteger kSecNanoRegistry = 11;
             // Beta last so the warning sits at the bottom of the Installer.
             signal,
             axon,
-            typeBanner,
+            // typeBanner,
         ];
     });
     return list;

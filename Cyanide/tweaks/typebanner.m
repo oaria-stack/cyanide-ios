@@ -296,61 +296,78 @@ void typebanner_forget_remote_state(void)
 
 #pragma mark - Detection helpers (MobileSMS side)
 
-// Walk the view hierarchy under `view` looking for any UIView responding to
-// -showTypingIndicator and returning YES. If found, get its conversation's
-// display name. Limited recursion depth.
-static NSString *tb_walk_typing(uint64_t view, int depth, uint64_t selShow,
-                                uint64_t selConv, uint64_t selName,
-                                uint64_t selSubviews, uint64_t selCount,
-                                uint64_t selObjAtIdx, uint64_t selResponds,
-                                NSString **found)
+// Hard cap on remote calls per poll. Each call to a UIKit method through
+// RemoteCall costs ~20-100ms with the usleep settle, so 250 nodes is roughly
+// 5-25s in the worst case. We log start/end so it's obvious in the log
+// whether the function reached the bottom or got capped.
+static const int kTbMaxVisits = 250;
+
+typedef struct {
+    uint64_t count;
+    uint64_t objAt;
+    uint64_t subviews;
+    uint64_t responds;
+    uint64_t show;
+    uint64_t conv;
+    uint64_t name;
+    uint64_t utf8;
+} TbPollSels;
+
+static NSString *tb_remote_nsstring_utf8(uint64_t nsStringObj, const TbPollSels *s)
 {
+    if (!r_is_objc_ptr(nsStringObj) || !s->utf8) return nil;
+    uint64_t cstr = r_msg(nsStringObj, s->utf8, 0, 0, 0, 0);
+    if (!cstr) return nil;
+    char buf[256] = {0};
+    if (!remote_read(cstr, buf, sizeof(buf) - 1)) return nil;
+    return [NSString stringWithUTF8String:buf];
+}
+
+// Walk the view hierarchy under `view`. Returns first display name found,
+// or nil. Caller passes a visit budget by pointer; we decrement and bail
+// when it hits zero.
+static NSString *tb_walk_typing(uint64_t view, int depth, int *visitsLeft,
+                                const TbPollSels *s, NSString **found)
+{
+    if (*visitsLeft <= 0) return nil;
     if (!r_is_objc_ptr(view) || depth > 20) return nil;
     if (*found && (*found).length > 0) return *found;
+    (*visitsLeft)--;
 
-    // Check this view for showTypingIndicator.
-    uint64_t respShow = r_msg(view, selResponds, selShow, 0, 0, 0);
+    // Cheapest check first: does this view answer -showTypingIndicator?
+    uint64_t respShow = r_msg(view, s->responds, s->show, 0, 0, 0);
     if ((respShow & 0xff) != 0) {
-        uint64_t isTyping = r_msg(view, selShow, 0, 0, 0, 0);
+        uint64_t isTyping = r_msg(view, s->show, 0, 0, 0, 0);
         if ((isTyping & 0xff) != 0) {
-            // Read conversation.name
-            NSString *name = @"";
-            uint64_t respConv = r_msg(view, selResponds, selConv, 0, 0, 0);
+            NSString *name = nil;
+            uint64_t respConv = r_msg(view, s->responds, s->conv, 0, 0, 0);
             if ((respConv & 0xff) != 0) {
-                uint64_t conv = r_msg(view, selConv, 0, 0, 0, 0);
+                uint64_t conv = r_msg(view, s->conv, 0, 0, 0, 0);
                 if (r_is_objc_ptr(conv)) {
-                    uint64_t respName = r_msg(conv, selResponds, selName, 0, 0, 0);
+                    uint64_t respName = r_msg(conv, s->responds, s->name, 0, 0, 0);
                     if ((respName & 0xff) != 0) {
-                        uint64_t nm = r_msg(conv, selName, 0, 0, 0, 0);
-                        if (r_is_objc_ptr(nm)) {
-                            uint64_t cstr = r_dlsym_call(R_TIMEOUT, "objc_msgSend",
-                                                         nm, r_sel("UTF8String"),
-                                                         0, 0, 0, 0, 0, 0);
-                            if (cstr) {
-                                char buf[256] = {0};
-                                if (remote_read(cstr, buf, sizeof(buf) - 1)) {
-                                    name = [NSString stringWithUTF8String:buf] ?: @"";
-                                }
-                            }
-                        }
+                        uint64_t nm = r_msg(conv, s->name, 0, 0, 0, 0);
+                        name = tb_remote_nsstring_utf8(nm, s);
                     }
                 }
             }
             *found = name.length > 0 ? name : @"<unknown>";
+            printf("[TYPEBANNER] poll: hit at depth=%d visitsLeft=%d name='%s'\n",
+                   depth, *visitsLeft, (*found).UTF8String);
             return *found;
         }
     }
 
-    // Recurse into subviews.
-    uint64_t subs = r_msg(view, selSubviews, 0, 0, 0, 0);
+    if (*visitsLeft <= 0) return nil;
+
+    uint64_t subs = r_msg(view, s->subviews, 0, 0, 0, 0);
     if (!r_is_objc_ptr(subs)) return nil;
-    uint64_t cnt = r_msg(subs, selCount, 0, 0, 0, 0);
+    uint64_t cnt = r_msg(subs, s->count, 0, 0, 0, 0);
     if (cnt == 0 || cnt > 256) return nil;
 
-    for (uint64_t i = 0; i < cnt; i++) {
-        uint64_t sub = r_msg(subs, selObjAtIdx, i, 0, 0, 0);
-        tb_walk_typing(sub, depth + 1, selShow, selConv, selName,
-                       selSubviews, selCount, selObjAtIdx, selResponds, found);
+    for (uint64_t i = 0; i < cnt && *visitsLeft > 0; i++) {
+        uint64_t sub = r_msg(subs, s->objAt, i, 0, 0, 0);
+        tb_walk_typing(sub, depth + 1, visitsLeft, s, found);
         if (*found && (*found).length > 0) return *found;
     }
     return nil;
@@ -358,55 +375,211 @@ static NSString *tb_walk_typing(uint64_t view, int depth, uint64_t selShow,
 
 NSString *typebanner_poll_in_mobilesms_session(void)
 {
+    printf("[TYPEBANNER] poll: entry (MobileSMS)\n");
+
     uint64_t UIApplication = r_class("UIApplication");
-    if (!r_is_objc_ptr(UIApplication)) return nil;
+    if (!r_is_objc_ptr(UIApplication)) {
+        printf("[TYPEBANNER] poll: UIApplication missing\n");
+        return nil;
+    }
     uint64_t app = r_msg2_main(UIApplication, "sharedApplication", 0, 0, 0, 0);
-    if (!r_is_objc_ptr(app)) return nil;
+    if (!r_is_objc_ptr(app)) {
+        printf("[TYPEBANNER] poll: sharedApplication nil\n");
+        return nil;
+    }
 
-    uint64_t scenes = r_msg2_main(app, "connectedScenes", 0, 0, 0, 0);
-    if (!r_is_objc_ptr(scenes)) return nil;
-    uint64_t allObjsSel = r_sel("allObjects");
-    uint64_t sceneArr = r_is_objc_ptr(allObjsSel) ? r_msg(scenes, allObjsSel, 0, 0, 0, 0) : 0;
-    if (!r_is_objc_ptr(sceneArr)) return nil;
+    TbPollSels sels = {0};
+    sels.count    = r_sel("count");
+    sels.objAt    = r_sel("objectAtIndex:");
+    sels.subviews = r_sel("subviews");
+    sels.responds = r_sel("respondsToSelector:");
+    sels.show     = r_sel("showTypingIndicator");
+    sels.conv     = r_sel("conversation");
+    sels.name     = r_sel("name");
+    sels.utf8     = r_sel("UTF8String");
 
-    uint64_t selCount = r_sel("count");
-    uint64_t sceneCount = r_msg(sceneArr, selCount, 0, 0, 0, 0);
-    if (sceneCount == 0 || sceneCount > 16) return nil;
-
-    uint64_t selObjAt = r_sel("objectAtIndex:");
     uint64_t selWindows = r_sel("windows");
-    uint64_t selRootVC = r_sel("rootViewController");
-    uint64_t selView = r_sel("view");
-    uint64_t selSubviews = r_sel("subviews");
-    uint64_t selResponds = r_sel("respondsToSelector:");
-    uint64_t selShow = r_sel("showTypingIndicator");
-    uint64_t selConv = r_sel("conversation");
-    uint64_t selName = r_sel("name");
+    uint64_t selRootVC  = r_sel("rootViewController");
+    uint64_t selView    = r_sel("view");
+    uint64_t selKeyWin  = r_sel("keyWindow");
+
+    // Fast path: keyWindow only. The conversation list / conversation VC the
+    // user is currently looking at is rooted in the keyWindow; we don't need
+    // to crawl every connectedScene.
+    uint64_t keyWin = r_msg(app, selKeyWin, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(keyWin)) {
+        // Fallback: take the first window of the first scene.
+        uint64_t scenes = r_msg2_main(app, "connectedScenes", 0, 0, 0, 0);
+        uint64_t allObjs = r_is_objc_ptr(scenes)
+            ? r_msg(scenes, r_sel("allObjects"), 0, 0, 0, 0)
+            : 0;
+        uint64_t sceneCount = r_is_objc_ptr(allObjs)
+            ? r_msg(allObjs, sels.count, 0, 0, 0, 0)
+            : 0;
+        if (sceneCount > 0 && sceneCount < 16) {
+            uint64_t scene = r_msg(allObjs, sels.objAt, 0, 0, 0, 0);
+            uint64_t windows = r_is_objc_ptr(scene)
+                ? r_msg(scene, selWindows, 0, 0, 0, 0)
+                : 0;
+            uint64_t winCount = r_is_objc_ptr(windows)
+                ? r_msg(windows, sels.count, 0, 0, 0, 0)
+                : 0;
+            if (winCount > 0 && winCount < 32) {
+                keyWin = r_msg(windows, sels.objAt, 0, 0, 0, 0);
+            }
+        }
+    }
+    if (!r_is_objc_ptr(keyWin)) {
+        printf("[TYPEBANNER] poll: no keyWindow / fallback window found\n");
+        return nil;
+    }
+
+    uint64_t rootVC = r_msg(keyWin, selRootVC, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(rootVC)) {
+        printf("[TYPEBANNER] poll: rootViewController nil\n");
+        return nil;
+    }
+    uint64_t rootView = r_msg(rootVC, selView, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(rootView)) {
+        printf("[TYPEBANNER] poll: rootView nil\n");
+        return nil;
+    }
 
     NSString *found = nil;
-    for (uint64_t i = 0; i < sceneCount && !found; i++) {
-        uint64_t scene = r_msg(sceneArr, selObjAt, i, 0, 0, 0);
-        if (!r_is_objc_ptr(scene)) continue;
-        uint64_t windows = r_msg(scene, selWindows, 0, 0, 0, 0);
-        if (!r_is_objc_ptr(windows)) continue;
-        uint64_t winCount = r_msg(windows, selCount, 0, 0, 0, 0);
-        if (winCount == 0 || winCount > 32) continue;
-        for (uint64_t w = 0; w < winCount && !found; w++) {
-            uint64_t win = r_msg(windows, selObjAt, w, 0, 0, 0);
-            if (!r_is_objc_ptr(win)) continue;
-            uint64_t rootVC = r_msg(win, selRootVC, 0, 0, 0, 0);
-            if (!r_is_objc_ptr(rootVC)) continue;
-            uint64_t rootView = r_msg(rootVC, selView, 0, 0, 0, 0);
-            if (!r_is_objc_ptr(rootView)) continue;
-            tb_walk_typing(rootView, 0, selShow, selConv, selName,
-                           selSubviews, selCount, selObjAt, selResponds, &found);
+    int visitsLeft = kTbMaxVisits;
+    tb_walk_typing(rootView, 0, &visitsLeft, &sels, &found);
+
+    int visited = kTbMaxVisits - visitsLeft;
+    if (found.length > 0) {
+        printf("[TYPEBANNER] poll: done visited=%d name='%s'\n",
+               visited, found.UTF8String);
+    } else {
+        printf("[TYPEBANNER] poll: done visited=%d no typing detected%s\n",
+               visited, visitsLeft <= 0 ? " (HIT VISIT CAP — view tree too deep)" : "");
+    }
+    return found;
+}
+
+#pragma mark - Diagnostic dump (MobileSMS side)
+
+// Walk the keyWindow's view tree and log every view whose class name contains
+// "Cell", "Conversation", or "Typing". For each, log the class name plus
+// whether it responds to a set of candidate typing-indicator selectors. This
+// is for one-shot discovery: if the live poll finds nothing, the user can run
+// this to see what the actual classes/selectors are on this iOS build.
+static void tb_diag_walk(uint64_t view, int depth, int *visitsLeft,
+                         uint64_t selSubviews, uint64_t selCount,
+                         uint64_t selObjAt, uint64_t selClass,
+                         uint64_t selResponds, uint64_t selUTF8,
+                         uint64_t *typingSels, const char *const *typingNames,
+                         int typingSelCount,
+                         uint64_t fnNSStringFromClass)
+{
+    if (*visitsLeft <= 0) return;
+    if (!r_is_objc_ptr(view) || depth > 25) return;
+    (*visitsLeft)--;
+
+    uint64_t cls = r_dlsym_call(R_TIMEOUT, "object_getClass",
+                                view, 0, 0, 0, 0, 0, 0, 0);
+    if (r_is_objc_ptr(cls)) {
+        uint64_t clsName = r_dlsym_call(R_TIMEOUT, "class_getName",
+                                        cls, 0, 0, 0, 0, 0, 0, 0);
+        char clsBuf[128] = {0};
+        if (clsName && remote_read(clsName, clsBuf, sizeof(clsBuf) - 1)) {
+            BOOL interesting =
+                strstr(clsBuf, "Cell") != NULL ||
+                strstr(clsBuf, "Conversation") != NULL ||
+                strstr(clsBuf, "Typing") != NULL ||
+                strstr(clsBuf, "CKChat") != NULL;
+            if (interesting) {
+                // Build a comma-separated list of which candidate sels this
+                // view responds to.
+                char respBuf[256] = {0};
+                size_t off = 0;
+                for (int i = 0; i < typingSelCount; i++) {
+                    uint64_t r = r_msg(view, selResponds, typingSels[i], 0, 0, 0);
+                    if ((r & 0xff) == 0) continue;
+                    int written = snprintf(respBuf + off, sizeof(respBuf) - off,
+                                           "%s%s", off ? "," : "", typingNames[i]);
+                    if (written <= 0 || (size_t)written >= sizeof(respBuf) - off) break;
+                    off += (size_t)written;
+                }
+                printf("[TYPEBANNER] diag d=%d cls=%s sels=[%s]\n",
+                       depth, clsBuf, respBuf);
+            }
         }
     }
 
-    if (found.length > 0) {
-        printf("[TYPEBANNER] poll: found typing name='%s'\n", found.UTF8String);
+    if (*visitsLeft <= 0) return;
+    uint64_t subs = r_msg(view, selSubviews, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(subs)) return;
+    uint64_t cnt = r_msg(subs, selCount, 0, 0, 0, 0);
+    if (cnt == 0 || cnt > 256) return;
+    for (uint64_t i = 0; i < cnt && *visitsLeft > 0; i++) {
+        uint64_t sub = r_msg(subs, selObjAt, i, 0, 0, 0);
+        tb_diag_walk(sub, depth + 1, visitsLeft,
+                     selSubviews, selCount, selObjAt,
+                     selClass, selResponds, selUTF8,
+                     typingSels, typingNames, typingSelCount,
+                     fnNSStringFromClass);
     }
-    return found;
+}
+
+void typebanner_diagnose_in_mobilesms_session(void)
+{
+    printf("[TYPEBANNER] diag: entry (MobileSMS)\n");
+
+    uint64_t UIApplication = r_class("UIApplication");
+    if (!r_is_objc_ptr(UIApplication)) { printf("[TYPEBANNER] diag: UIApplication missing\n"); return; }
+    uint64_t app = r_msg2_main(UIApplication, "sharedApplication", 0, 0, 0, 0);
+    if (!r_is_objc_ptr(app)) { printf("[TYPEBANNER] diag: app nil\n"); return; }
+
+    uint64_t selCount = r_sel("count");
+    uint64_t selObjAt = r_sel("objectAtIndex:");
+    uint64_t selSubviews = r_sel("subviews");
+    uint64_t selResponds = r_sel("respondsToSelector:");
+    uint64_t selKeyWin = r_sel("keyWindow");
+    uint64_t selRootVC = r_sel("rootViewController");
+    uint64_t selView = r_sel("view");
+    uint64_t selClass = r_sel("class");
+    uint64_t selUTF8 = r_sel("UTF8String");
+
+    // Candidate selectors a "typing" cell or VC might respond to. We log
+    // every match so we can see what the cell actually exposes.
+    const char *typingNames[] = {
+        "showTypingIndicator",
+        "isShowingTypingIndicator",
+        "showsTypingIndicator",
+        "setShowTypingIndicator:",
+        "setShowsTypingIndicator:",
+        "typingIndicatorVisible",
+        "isTypingIndicatorVisible",
+        "setTypingIndicatorVisible:",
+        "typingHandle",
+        "isTyping",
+        "conversation",
+    };
+    int typingSelCount = (int)(sizeof(typingNames) / sizeof(typingNames[0]));
+    uint64_t typingSels[16] = {0};
+    for (int i = 0; i < typingSelCount; i++) {
+        typingSels[i] = r_sel(typingNames[i]);
+    }
+
+    uint64_t keyWin = r_msg(app, selKeyWin, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(keyWin)) { printf("[TYPEBANNER] diag: keyWindow nil\n"); return; }
+    uint64_t rootVC = r_msg(keyWin, selRootVC, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(rootVC)) { printf("[TYPEBANNER] diag: rootVC nil\n"); return; }
+    uint64_t rootView = r_msg(rootVC, selView, 0, 0, 0, 0);
+    if (!r_is_objc_ptr(rootView)) { printf("[TYPEBANNER] diag: rootView nil\n"); return; }
+
+    int visitsLeft = 600;
+    tb_diag_walk(rootView, 0, &visitsLeft,
+                 selSubviews, selCount, selObjAt,
+                 selClass, selResponds, selUTF8,
+                 typingSels, typingNames, typingSelCount,
+                 0);
+    int visited = 600 - visitsLeft;
+    printf("[TYPEBANNER] diag: done visited=%d\n", visited);
 }
 
 #pragma mark - One-shot orchestrator

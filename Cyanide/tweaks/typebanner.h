@@ -30,6 +30,12 @@ bool typebanner_hide_in_springboard_session(void);
 // showing a typing indicator. Returns nil if nothing is typing.
 // Must be called inside an init_remote_call("MobileSMS", ...) session.
 NSString *typebanner_poll_in_mobilesms_session(void);
+
+// MobileSMS-side: walk the view hierarchy and log the class name and a
+// summary of typing-related selectors for every UITableViewCell-shaped view.
+// Use for one-shot diagnostics when the regular poll returns nothing.
+// Must be called inside an init_remote_call("MobileSMS", ...) session.
+void typebanner_diagnose_in_mobilesms_session(void);
 #endif
 
 // One-shot orchestration from Cyanide's process. Tears down any existing

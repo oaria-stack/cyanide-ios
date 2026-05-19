@@ -41,6 +41,22 @@ bool nano_registry_apply(const nano_registry_values *values);
 // or when there is nothing to clear.
 bool nano_registry_clear(void);
 
+// Data-only diagnostic for the next pairing gate: logs NanoRegistry/Bridge
+// MobileAsset and ProductKit cache state without touching executable pages.
+// Requires KRW only so the app can get enough /private/var read access.
+bool nano_registry_probe_pairing_assets(void);
+
+// Runtime-only product steering for newer Watch7 hardware. Uses RemoteCall
+// into already-running Bridge/NanoRegistry processes and normal NRDevice
+// setters to alias unknown Watch7 product types to a known Ultra product
+// type. No dlopen and no executable-page patching.
+bool nano_registry_steer_new_watch_product_alias(void);
+
+// Data-only compatibility-index seed. Adds the current phone product type
+// (e.g. iPhone17,2) to NanoRegistryPairingCompatibilityIndex.plist's iPhone
+// dictionary, backing the original file up beside it as .cyanide.bak.
+bool nano_registry_seed_current_phone_compatibility_index(int max_pairing_version);
+
 // Pushes the four override keys directly into the mobile-user cfprefsd's
 // in-memory cache via RemoteCall + CFPreferencesSetValue. This is needed
 // because cfprefsd is the source of truth for CFPreferencesCopyValue

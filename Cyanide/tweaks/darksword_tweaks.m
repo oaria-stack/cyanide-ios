@@ -60,6 +60,26 @@ static bool ds_poke_pointer_ivar(uint64_t obj, uint64_t cls, const char *name, u
     return readback == value;
 }
 
+static bool ds_set_trailing_controllers(uint64_t obj, uint64_t value, const char *tag)
+{
+    if (!r_is_objc_ptr(obj)) return false;
+
+    const char *setters[] = {
+        "setTrailingCustomViewControllers:",
+        "_setTrailingCustomViewControllers:",
+    };
+    for (size_t i = 0; i < sizeof(setters) / sizeof(setters[0]); i++) {
+        if (!r_responds(obj, setters[i])) continue;
+        r_msg2_main(obj, setters[i], value, 0, 0, 0);
+        printf("[DST:APPLIB] %s via %s\n", tag, setters[i]);
+        usleep(kDSTSettleUS);
+        return true;
+    }
+
+    uint64_t cls = ds_object_class(obj);
+    return ds_poke_pointer_ivar(obj, cls, "_trailingCustomViewControllers", value);
+}
+
 static bool ds_poke_double_ivar(uint64_t obj, uint64_t cls, const char *name, double value)
 {
     uint64_t target = ds_resolve_ivar_target(obj, cls, name);
@@ -127,13 +147,11 @@ bool darksword_tweak_disable_app_library_in_session(void)
     }
 
     bool ok = false;
-    uint64_t rootFCCls = ds_object_class(rootFC);
-    ok |= ds_poke_pointer_ivar(rootFC, rootFCCls, "_trailingCustomViewControllers", emptyArr);
+    ok |= ds_set_trailing_controllers(rootFC, emptyArr, "rootFolderController");
 
     uint64_t rootView = ds_try_msg0(rootFC, "rootFolderView");
     if (r_is_objc_ptr(rootView)) {
-        uint64_t rootViewCls = ds_object_class(rootView);
-        ok |= ds_poke_pointer_ivar(rootView, rootViewCls, "_trailingCustomViewControllers", emptyArr);
+        ok |= ds_set_trailing_controllers(rootView, emptyArr, "rootFolderView");
     } else {
         printf("[DST:APPLIB] rootFolderView nil\n");
     }

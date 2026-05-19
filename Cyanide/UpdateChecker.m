@@ -58,6 +58,9 @@ static int compare_versions(NSString *a, NSString *b)
     self.didCheckThisLaunch = YES;
     if (!presenter) return;
 
+    printf("[UPDATE] checking latest release (current=%s)\n",
+           self.currentVersion.UTF8String);
+
     NSURL *url = [NSURL URLWithString:kReleasesAPI];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
                                                        cachePolicy:NSURLRequestReloadIgnoringLocalCacheData

@@ -169,17 +169,13 @@ static const NSInteger kNanoDefaultMaxPairing       = 25;
 static const NSInteger kNanoDefaultMinPairing       = 24;
 static const NSInteger kNanoDefaultMinPairingChipID = 10;
 static const NSInteger kNanoDefaultMinQuickSwitch   = 6;
-// "Pair newer watch on this iPhone" preset: maximally permissive.
-// Upper gate is pinned to the UI row ceiling (anything <= this passes the
-// max check) and every lower gate is pinned to 1 (anything >= 1 passes the
-// min check). This intentionally also lets older watches pair — the goal of
-// the preset is "version is not the bottleneck, period." If the override is
-// actually being read by NanoRegistry, pairing will not fail on the version
-// gates with these values.
-static const NSInteger kNanoPresetNewerMaxPairing       = 999;
-static const NSInteger kNanoPresetNewerMinPairing       = 1;
-static const NSInteger kNanoPresetNewerMinPairingChipID = 1;
-static const NSInteger kNanoPresetNewerMinQuickSwitch   = 1;
+// "Pair newer watch on this iPhone" preset. Mirror the l-playground tuple
+// that has worked on-device: raise only the upper gate and leave Apple's
+// lower gates alone so we don't accidentally alter other pairing paths.
+static const NSInteger kNanoPresetNewerMaxPairing       = 99;
+static const NSInteger kNanoPresetNewerMinPairing       = 24;
+static const NSInteger kNanoPresetNewerMinPairingChipID = 10;
+static const NSInteger kNanoPresetNewerMinQuickSwitch   = 6;
 static const NSInteger kNanoUIRowMin = 1;
 static const NSInteger kNanoUIRowMax = 999;
 static const useconds_t kStatBarLiveIntervalUS = 1000000;
@@ -878,9 +874,8 @@ static BOOL settings_ensure_kexploit(void)
         settings_notify_remote_call_state_changed();
     }
 
-    printf("[SETTINGS] kexploit preflight cleanup\n");
-    log_user("[KRW] Preflight cleanup: closing app-owned leftovers before KRW setup.\n");
-    kexploit_preflight_cleanup();
+    printf("[SETTINGS] kexploit setup: recovery first, fresh cleanup if needed\n");
+    log_user("[KRW] Setup: trying parked launchd sockets before any fresh socket spray.\n");
     int res = kexploit_opa334();
     if (res != 0) {
         printf("[SETTINGS] kexploit_opa334 failed: %d\n", res);
@@ -1338,6 +1333,64 @@ static void settings_run_nano_clear_action(void)
 {
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
         (void)settings_apply_nano_registry_now(NO);
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:kSettingsActionsDidCompleteNotification
+                              object:nil];
+        });
+    });
+}
+
+static void settings_run_nano_probe_action(void)
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if (!settings_ensure_kexploit()) {
+            log_user("[NANO-PROBE] Failed: kernel primitives were not acquired.\n");
+        } else {
+            (void)nano_registry_probe_pairing_assets();
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:kSettingsActionsDidCompleteNotification
+                              object:nil];
+        });
+    });
+}
+
+static void settings_run_nano_steer_action(void)
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if (!settings_ensure_kexploit()) {
+            log_user("[NANO-STEER] Failed: kernel primitives were not acquired.\n");
+        } else {
+            (void)nano_registry_steer_new_watch_product_alias();
+        }
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [[NSNotificationCenter defaultCenter]
+                postNotificationName:kSettingsActionsDidCompleteNotification
+                              object:nil];
+        });
+    });
+}
+
+static void settings_run_nano_seed_action(void)
+{
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        if (!settings_ensure_kexploit()) {
+            log_user("[NANO-SEED] Failed: kernel primitives were not acquired.\n");
+        } else {
+            NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+            nano_registry_values values = {
+                .max_pairing         = (int)[d integerForKey:kSettingsNanoMaxPairing],
+                .min_pairing         = (int)[d integerForKey:kSettingsNanoMinPairing],
+                .min_pairing_chip_id = (int)[d integerForKey:kSettingsNanoMinPairingChipID],
+                .min_quick_switch    = (int)[d integerForKey:kSettingsNanoMinQuickSwitch],
+            };
+            bool ok = nano_registry_seed_current_phone_compatibility_index(values.max_pairing);
+            if (ok) {
+                (void)nano_registry_push_to_cfprefsd(&values, true);
+            }
+        }
         dispatch_async(dispatch_get_main_queue(), ^{
             [[NSNotificationCenter defaultCenter]
                 postNotificationName:kSettingsActionsDidCompleteNotification
@@ -2559,18 +2612,22 @@ void settings_run_actions(void)
                     if (runAxonLite) {
                         settings_progress(&step, total, "Starting Axon Lite notification hub");
                         bool ok = false;
+                        bool deferred = false;
                         if (settings_axonlite_can_poll_springboard()) {
                             ok = axonlite_apply_in_session();
+                            deferred = !ok && !axonlite_initial_cache_ready();
                         } else {
+                            deferred = true;
                             printf("[SETTINGS] Axon Lite initial apply skipped: %s\n",
                                    settings_axonlite_pause_reason());
                         }
                         settings_mark_tweak_applied(kSettingsAxonLiteEnabled,
-                                                    ok && [d boolForKey:kSettingsAxonLiteEnabled]);
-                        printf("[SETTINGS] Axon Lite result=%d\n", ok);
+                                                    (ok || deferred) && [d boolForKey:kSettingsAxonLiteEnabled]);
+                        printf("[SETTINGS] Axon Lite result=%d deferred=%d\n", ok, deferred);
                         log_user("%s Axon Lite %s.\n",
-                                 ok ? "[OK]" : "[WARN]",
-                                 ok ? "overlay is live" : "did not start cleanly");
+                                 (ok || deferred) ? "[OK]" : "[WARN]",
+                                 ok ? "overlay is live" :
+                                 (deferred ? "will start when notifications are visible" : "did not start cleanly"));
                     }
                 }
 
@@ -2836,11 +2893,10 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     [super viewWillAppear:animated];
     [self reloadManualActions];
 
-    // When the NanoRegistry detail panel is about to show, refresh the
-    // steppers from whatever's currently on disk so the editor reflects any
-    // override that's already been applied (or by another tool).
+    // The NanoRegistry plist lives behind a sandbox wall on-device. Keep the
+    // detail panel passive; the explicit "Load Current" button performs the
+    // privileged KRW/sandbox setup before reading it.
     if (self.detailMode && self.underlyingSection == SectionNanoRegistry) {
-        settings_nano_load_from_plist_into_defaults(NO);
         if (self.isViewLoaded) {
             [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
                           withRowAnimation:UITableViewRowAnimationNone];
@@ -2999,6 +3055,18 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
            @"action": @"nano-apply" },
 
         @{ @"kind": @"button",
+           @"title": @"Probe Pairing Assets (No Patches)",
+           @"action": @"nano-probe" },
+
+        @{ @"kind": @"button",
+           @"title": @"Steer AWU3 Product Type (No dlopen)",
+           @"action": @"nano-steer" },
+
+        @{ @"kind": @"button",
+           @"title": @"Seed Compatibility Index (No Patches)",
+           @"action": @"nano-seed" },
+
+        @{ @"kind": @"button",
            @"title": @"Remove Override",
            @"action": @"nano-clear",
            @"destructive": @YES },
@@ -3033,7 +3101,12 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
 
 - (NSArray<NSDictionary *> *)typebannerRows
 {
-    return @[];
+    return @[
+        @{ @"kind": @"button",
+           @"title": @"Test: Poll Messages & Show Banner",
+           @"subtitle": @"Runs the real detection path once. Opens Messages first (or pin a typing thread), then tap. Banner shows the result; the [TYPEBANNER] log lines explain what was/wasn't found.",
+           @"action": @"typebanner-test" },
+    ];
 }
 
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)settingsSummaryForSection:(NSInteger)section
@@ -3094,7 +3167,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         @{ @"title": @"StatBar",            @"icon": @"thermometer.medium",                  @"color": [UIColor systemRedColor],    @"section": @(SectionStatBar) },
         @{ @"title": @"Signal Display",     @"icon": @"antenna.radiowaves.left.and.right",   @"color": [UIColor systemBlueColor],   @"section": @(SectionRSSI) },
         @{ @"title": @"Axon Lite",          @"icon": @"bell.badge.fill",                     @"color": [UIColor systemRedColor],    @"section": @(SectionAxonLite) },
-        @{ @"title": @"TypeBanner",         @"icon": @"ellipsis.bubble.fill",                @"color": [UIColor systemTealColor],   @"section": @(SectionTypeBanner) },
+        // @{ @"title": @"TypeBanner",         @"icon": @"ellipsis.bubble.fill",                @"color": [UIColor systemTealColor],   @"section": @(SectionTypeBanner) },
         @{ @"title": @"Powercuff",          @"icon": @"bolt.slash.fill",                     @"color": [UIColor systemOrangeColor], @"section": @(SectionPowercuff) },
         @{ @"title": @"SpringBoard Tweaks", @"icon": @"apps.iphone",                         @"color": [UIColor systemIndigoColor], @"section": @(SectionDarkSwordTweaks) },
     ];
@@ -4106,9 +4179,20 @@ void cyanide_present_contact(UIViewController *host)
         NSString *action = row[@"action"];
 
         if ([action isEqualToString:@"nano-load"]) {
-            settings_nano_load_from_plist_into_defaults(YES);
-            [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
-                          withRowAnimation:UITableViewRowAnimationNone];
+            dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                if (!settings_ensure_kexploit()) {
+                    log_user("[NANO] Failed: kernel primitives were not acquired.\n");
+                } else {
+                    settings_nano_load_from_plist_into_defaults(YES);
+                }
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
+                                  withRowAnimation:UITableViewRowAnimationNone];
+                    [[NSNotificationCenter defaultCenter]
+                        postNotificationName:kSettingsActionsDidCompleteNotification
+                                      object:nil];
+                });
+            });
         } else if ([action isEqualToString:@"nano-preset-newer"]) {
             settings_nano_set_defaults_values(kNanoPresetNewerMaxPairing,
                                               kNanoPresetNewerMinPairing,
@@ -4131,6 +4215,20 @@ void cyanide_present_contact(UIViewController *host)
                 settings_run_nano_apply_action();
             }]];
             settings_present_controller(ac, self);
+        } else if ([action isEqualToString:@"nano-probe"]) {
+            settings_run_nano_probe_action();
+        } else if ([action isEqualToString:@"nano-steer"]) {
+            settings_run_nano_steer_action();
+        } else if ([action isEqualToString:@"nano-seed"]) {
+            UIAlertController *ac = [UIAlertController
+                alertControllerWithTitle:@"Seed Compatibility Index?"
+                                 message:@"Adds this phone's product type to the local NanoRegistry compatibility-index MobileAsset and saves a .cyanide.bak backup beside the original file."
+                          preferredStyle:UIAlertControllerStyleAlert];
+            [ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
+            [ac addAction:[UIAlertAction actionWithTitle:@"Seed" style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
+                settings_run_nano_seed_action();
+            }]];
+            settings_present_controller(ac, self);
         } else if ([action isEqualToString:@"nano-clear"]) {
             UIAlertController *ac = [UIAlertController
                 alertControllerWithTitle:@"Remove Pairing Override?"
@@ -4141,6 +4239,111 @@ void cyanide_present_contact(UIViewController *host)
                 settings_run_nano_clear_action();
             }]];
             settings_present_controller(ac, self);
+        }
+        return;
+    }
+
+    if (indexPath.section == SectionTypeBanner) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        if (![row[@"kind"] isEqualToString:@"button"]) return;
+        NSString *action = row[@"action"];
+        if ([action isEqualToString:@"typebanner-test"]) {
+            static volatile int sTbTestInFlight = 0;
+            if (__sync_lock_test_and_set(&sTbTestInFlight, 1)) {
+                log_user("[TYPEBANNER] Test already running — wait for the previous one to finish before tapping again.\n");
+                return;
+            }
+            __weak typeof(self) weakSelf = self;
+            dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                @try {
+                    if (!settings_ensure_kexploit()) {
+                        log_user("[TYPEBANNER] Test failed: kernel primitives not acquired. Run kexploit (Apply Tweaks) first.\n");
+                        return;
+                    }
+
+                    // Pause the live loop while the test owns sessions, then
+                    // restart it after we're done. Otherwise concurrent
+                    // MobileSMS init_remote_call between the loop and the
+                    // test corrupts state ("Don't receive first exception").
+                    BOOL liveLoopWasRunning = g_typebanner_live_running != 0;
+                    if (liveLoopWasRunning) {
+                        g_typebanner_live_stop_requested = 1;
+                        int waitMs = 0;
+                        while (g_typebanner_live_running && waitMs < 5000) {
+                            usleep(100000);
+                            waitMs += 100;
+                        }
+                        if (g_typebanner_live_running) {
+                            log_user("[TYPEBANNER] Test aborted: live loop did not yield in 5s.\n");
+                            return;
+                        }
+                    }
+
+                    log_user("[TYPEBANNER] Test: polling MobileSMS for typing indicators…\n");
+                    NSString *detected = nil;
+                    if (init_remote_call("MobileSMS", false) != 0) {
+                        log_user("[TYPEBANNER] Messages.app is not running. Open Messages, then tap Test again.\n");
+                    } else {
+                        @try {
+                            detected = typebanner_poll_in_mobilesms_session();
+                        } @catch (NSException *e) {
+                            log_user("[TYPEBANNER] MobileSMS poll threw: %s\n", e.reason.UTF8String);
+                        }
+                        // If nothing was found, run a class-name discovery
+                        // walk so we can see what the cells actually are
+                        // and whether the selector name we're checking
+                        // ('showTypingIndicator') has been renamed on this
+                        // iOS build.
+                        if (detected.length == 0) {
+                            log_user("[TYPEBANNER] No typing indicator found via 'showTypingIndicator'. Running discovery walk to dump cell classes/selectors…\n");
+                            @try {
+                                typebanner_diagnose_in_mobilesms_session();
+                            } @catch (NSException *e) {
+                                log_user("[TYPEBANNER] Diagnose threw: %s\n", e.reason.UTF8String);
+                            }
+                        }
+                        destroy_remote_call();
+                    }
+
+                    if (detected.length > 0) {
+                        log_user("[TYPEBANNER] Detected typing: %s. Showing banner.\n",
+                                 detected.UTF8String);
+                    } else {
+                        log_user("[TYPEBANNER] Showing a one-shot demo banner so you can confirm the SpringBoard render path.\n");
+                    }
+
+                    if (init_remote_call("SpringBoard", false) != 0) {
+                        log_user("[TYPEBANNER] SpringBoard not reachable; cannot show banner.\n");
+                    } else {
+                        bool ok = false;
+                        @try {
+                            NSString *label = detected.length > 0 ? detected : @"TypeBanner demo";
+                            ok = typebanner_show_in_springboard_session(label);
+                        } @catch (NSException *e) {
+                            log_user("[TYPEBANNER] SpringBoard show threw: %s\n", e.reason.UTF8String);
+                        }
+                        destroy_remote_call();
+                        log_user("[TYPEBANNER] show=%d. Banner auto-hides in 5s.\n", ok);
+                        sleep(5);
+                        if (init_remote_call("SpringBoard", false) == 0) {
+                            @try { typebanner_hide_in_springboard_session(); } @catch (NSException *e) {}
+                            destroy_remote_call();
+                        }
+                    }
+
+                    if (liveLoopWasRunning) {
+                        log_user("[TYPEBANNER] Resuming live loop.\n");
+                        g_typebanner_live_stop_requested = 0;
+                        settings_start_typebanner_live_loop();
+                    }
+                } @finally {
+                    __sync_lock_release(&sTbTestInFlight);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [weakSelf.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
+                                          withRowAnimation:UITableViewRowAnimationNone];
+                    });
+                }
+            });
         }
         return;
     }

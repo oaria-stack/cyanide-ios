@@ -736,6 +736,17 @@ struct VMShmem *get_shmem_for_page(uint64_t pageAddr)
     if (cached) return cached;
 
     struct VMShmem newShmem = vm_map_remote_page(g_RC_vmMap, pageAddr);
+    if (!newShmem.localAddress) {
+        static volatile uint64_t shmemRetryEvents = 0;
+        uint64_t events = __sync_add_and_fetch(&shmemRetryEvents, 1);
+        if (events == 1 || (events % 64) == 0) {
+            printf("[RemoteCall] shmem map failed page=0x%llx; clearing cache and retrying event=%llu\n",
+                   pageAddr, (unsigned long long)events);
+        }
+        clear_remote_shmem_cache();
+        (void)reap_dead_port_names("shmem_retry");
+        newShmem = vm_map_remote_page(g_RC_vmMap, pageAddr);
+    }
     if (!newShmem.localAddress)
             return NULL;
     return put_shmem_in_cache(&newShmem);
