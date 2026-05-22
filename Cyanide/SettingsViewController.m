@@ -124,6 +124,7 @@ NSString * const kSettingsNanoMinQuickSwitch   = @"NanoRegistryMinQuickSwitch";
 NSString * const kSettingsLogUploadEnabled = @"LogUploadEnabled";
 
 static void cyanide_upload_log_if_enabled(void);
+static void cyanide_upload_log_milestone(NSString *event);
 static void cyanide_start_session_uploads(void);
 static void cyanide_stop_session_uploads(void);
 
@@ -1433,6 +1434,7 @@ static void settings_start_statbar_live_loop(void)
                kStatBarLiveIntervalUS,
                kStatBarLiveBackgroundIntervalUS,
                (unsigned long)kStatBarLiveMaxTicks);
+        cyanide_upload_log_milestone(@"statbar-live-started");
 
         @try {
             while ([d boolForKey:kSettingsStatBarEnabled] &&
@@ -1471,7 +1473,10 @@ static void settings_start_statbar_live_loop(void)
                                                   [d boolForKey:kSettingsStatBarHideNet]);
                 }
 
-                if (tick == 0) printf("[SETTINGS] StatBar result=%d\n", ok);
+                if (tick == 0) {
+                    printf("[SETTINGS] StatBar result=%d\n", ok);
+                    cyanide_upload_log_milestone(ok ? @"statbar-live-first-ok" : @"statbar-live-first-failed");
+                }
                 if (ok) {
                     failures = 0;
                 } else {
@@ -1531,6 +1536,8 @@ static void settings_start_statbar_live_loop(void)
             if (![d boolForKey:kSettingsStatBarEnabled] || g_statbar_live_stop_requested || failures > 0) {
                 settings_end_statbar_background_task_async("live loop exited");
             }
+            if (failures > 0)
+                cyanide_upload_log_milestone(@"statbar-live-exited-failed");
             __sync_lock_release(&g_statbar_live_running);
         }
     });
@@ -1609,6 +1616,7 @@ static void settings_start_rssi_live_loop(void)
                kRSSILiveIntervalUS,
                kRSSILiveBackgroundIntervalUS,
                (unsigned long)kRSSILiveMaxTicks);
+        cyanide_upload_log_milestone(@"rssi-live-started");
 
         @try {
             while ([d boolForKey:kSettingsRSSIDisplayEnabled] &&
@@ -1653,6 +1661,7 @@ static void settings_start_rssi_live_loop(void)
                     printf("[SETTINGS] RSSI first tick result=%d elapsed=%lluus\n",
                            ok,
                            (unsigned long long)elapsedUS);
+                    cyanide_upload_log_milestone(ok ? @"rssi-live-first-ok" : @"rssi-live-first-failed");
                 }
                 if (ok) {
                     failures = 0;
@@ -1693,6 +1702,8 @@ static void settings_start_rssi_live_loop(void)
                    [d boolForKey:kSettingsRSSIDisplayEnabled],
                    (unsigned long)failures,
                    g_rssi_live_stop_requested);
+            if (failures > 0)
+                cyanide_upload_log_milestone(@"rssi-live-exited-failed");
             __sync_lock_release(&g_rssi_live_running);
         }
     });
@@ -1764,6 +1775,7 @@ static void settings_start_axonlite_live_loop(void)
                kAxonLiteLiveIntervalUS,
                kAxonLiteLiveBackgroundIntervalUS,
                (unsigned long)kAxonLiteLiveMaxTicks);
+        cyanide_upload_log_milestone(@"axon-lite-live-started");
 
         @try {
             settings_live_loop_sleep_interruptible(0,
@@ -1822,7 +1834,10 @@ static void settings_start_axonlite_live_loop(void)
                     ok = axonlite_apply_in_session();
                 }
 
-                if (tick == 0) printf("[SETTINGS] Axon Lite result=%d\n", ok);
+                if (tick == 0) {
+                    printf("[SETTINGS] Axon Lite result=%d\n", ok);
+                    cyanide_upload_log_milestone(ok ? @"axon-lite-live-first-ok" : @"axon-lite-live-first-failed");
+                }
                 if (ok) {
                     failures = 0;
                 } else {
@@ -1867,6 +1882,8 @@ static void settings_start_axonlite_live_loop(void)
                    [d boolForKey:kSettingsAxonLiteEnabled],
                    (unsigned long)failures,
                    g_axonlite_live_stop_requested);
+            if (failures > 0)
+                cyanide_upload_log_milestone(@"axon-lite-live-exited-failed");
             __sync_lock_release(&g_axonlite_live_running);
         }
     });
@@ -2473,18 +2490,22 @@ void settings_run_actions(void)
                 NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"heavy";
                 log_user("[PLAN] Powercuff target: thermalmonitord level=%s\n", lvl.UTF8String);
             }
+            cyanide_upload_log_milestone(@"run-plan");
 
             settings_progress(&step, total, "Preparing KRW primitives (socket/IOSurface path)");
             if (!settings_ensure_kexploit()) {
                 log_user("[RUN] Failed: kernel primitives were not acquired.\n");
+                cyanide_upload_log_milestone(@"krw-failed");
                 return;
             }
             log_user("[OK] Kernel primitives ready; RemoteCall can be staged.\n");
+            cyanide_upload_log_milestone(@"krw-ready");
 
             if (patchSandboxExt) {
                 settings_progress(&step, total, "Patching sandbox-extension issue path");
                 escape_sbx_demo3();
                 log_user("[OK] Sandbox-extension patch stage finished.\n");
+                cyanide_upload_log_milestone(@"sandbox-ext-patched");
             }
             printf("[SETTINGS] actions escape=%d patch=%d sbc=%d dock=%ld hs=%ldx%ld hideLabels=%d dark=%d power=%d level=%s statbar=%d celsius=%d hideNet=%d rssi=%d rssiWifi=%d rssiCell=%d axon=%d rcReady=%d\n",
                    runSandboxEscape,
@@ -2527,6 +2548,7 @@ void settings_run_actions(void)
                     log_user("%s Powercuff %s through thermalmonitord.\n",
                              ok ? "[OK]" : "[WARN]",
                              ok ? "applied" : "did not apply cleanly");
+                    cyanide_upload_log_milestone(ok ? @"powercuff-applied" : @"powercuff-failed");
                 }
             }
 
@@ -2535,9 +2557,11 @@ void settings_run_actions(void)
                     settings_progress(&step, total, "Opening SpringBoard RemoteCall session");
                     if (!settings_ensure_springboard_remote_call_locked()) {
                         log_user("[RUN] Failed: could not open the SpringBoard control session.\n");
+                        cyanide_upload_log_milestone(@"springboard-remote-call-failed");
                         return;
                     }
                     log_user("[OK] SpringBoard RemoteCall ready.\n");
+                    cyanide_upload_log_milestone(@"springboard-remote-call-ready");
 
                     if (runSandboxEscape && !g_springboard_sandbox_escaped) {
                         settings_progress(&step, total, "Consuming SpringBoard sandbox extension");
@@ -2547,10 +2571,12 @@ void settings_run_actions(void)
                         log_user("%s SpringBoard filesystem token %s.\n",
                                  sbx == 0 ? "[OK]" : "[WARN]",
                                  sbx == 0 ? "consumed" : "returned a warning");
+                        cyanide_upload_log_milestone(sbx == 0 ? @"springboard-sandbox-token-ready" : @"springboard-sandbox-token-warning");
                     } else if (runSandboxEscape) {
                         printf("[SETTINGS] sandbox escape already consumed for this SpringBoard session\n");
                         settings_progress(&step, total, "Reusing SpringBoard sandbox token");
                         log_user("[OK] SpringBoard filesystem token already consumed.\n");
+                        cyanide_upload_log_milestone(@"springboard-sandbox-token-reused");
                     }
 
                     if (runSBC) {
@@ -2565,6 +2591,7 @@ void settings_run_actions(void)
                                  (long)[d integerForKey:kSettingsSBCDockIcons],
                                  (long)[d integerForKey:kSettingsSBCCols],
                                  (long)[d integerForKey:kSettingsSBCRows]);
+                        cyanide_upload_log_milestone(ok ? @"sbc-applied" : @"sbc-warning");
                     }
 
                     if (runDarkTweaks) {
@@ -2583,6 +2610,7 @@ void settings_run_actions(void)
                         log_user("%s DarkSword hooks %s.\n",
                                  ok ? "[OK]" : "[WARN]",
                                  ok ? "applied" : "may need a refresh");
+                        cyanide_upload_log_milestone(ok ? @"darksword-tweaks-applied" : @"darksword-tweaks-warning");
                     }
 
                     if (runStatBar) {
@@ -2595,6 +2623,7 @@ void settings_run_actions(void)
                         log_user("%s StatBar %s.\n",
                                  ok ? "[OK]" : "[WARN]",
                                  ok ? "receiving live data" : "did not start cleanly");
+                        cyanide_upload_log_milestone(ok ? @"statbar-initial-applied" : @"statbar-initial-failed");
                     }
 
                     if (runRSSI) {
@@ -2607,6 +2636,7 @@ void settings_run_actions(void)
                         log_user("%s RSSI signal overlays %s.\n",
                                  ok ? "[OK]" : "[WARN]",
                                  ok ? "live" : "did not start cleanly");
+                        cyanide_upload_log_milestone(ok ? @"rssi-initial-applied" : @"rssi-initial-failed");
                     }
 
                     if (runAxonLite) {
@@ -2628,6 +2658,8 @@ void settings_run_actions(void)
                                  (ok || deferred) ? "[OK]" : "[WARN]",
                                  ok ? "overlay is live" :
                                  (deferred ? "will start when notifications are visible" : "did not start cleanly"));
+                        cyanide_upload_log_milestone(ok ? @"axon-lite-initial-applied" :
+                                                     (deferred ? @"axon-lite-initial-deferred" : @"axon-lite-initial-failed"));
                     }
                 }
 
@@ -2650,16 +2682,19 @@ void settings_run_actions(void)
                     settings_progress(&step, total, "Starting TypeBanner Messages poll");
                     settings_mark_tweak_applied(kSettingsTypeBannerEnabled, YES);
                     log_user("[OK] TypeBanner polling Messages every ~1.5s.\n");
+                    cyanide_upload_log_milestone(@"typebanner-live-starting");
                     settings_start_typebanner_live_loop();
                 } else {
                     g_typebanner_live_stop_requested = 1;
                 }
+                if (runStatBar || runRSSI || runAxonLite || runTypeBanner)
+                    cyanide_upload_log_milestone(@"live-tweaks-started");
             }
 
             log_user("[DONE] Run complete. Verbose trace captured the raw call stream.\n");
+            cyanide_upload_log_milestone(@"run-complete");
         } @finally {
-            // Stop the periodic checkpoint uploader before the final upload so
-            // the timer can't race a duplicate snapshot in after the closing one.
+            // Close any legacy uploader state before the final snapshot.
             cyanide_stop_session_uploads();
             log_session_end();
             __sync_lock_release(&g_settings_actions_running);
@@ -3494,18 +3529,18 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     [self.navigationController pushViewController:vc animated:YES];
 }
 
-// Session-scoped state so checkpoint snapshots from one chain run get grouped
-// on the server side (same sessionId, monotonically increasing seq). A fresh
+// Session-scoped state so uploaded snapshots from one chain run get grouped on
+// the server side (same sessionId, monotonically increasing seq). A fresh
 // session begins at every settings_run_actions() entry.
 static dispatch_source_t g_cyanide_upload_timer = NULL;
 static NSString         *g_cyanide_upload_session_id = nil;
+static NSMutableSet<NSString *> *g_cyanide_upload_milestones = nil;
 static volatile int      g_cyanide_upload_seq = 0;
 
-// kind = "checkpoint" (periodic snapshot during a chain run) or "final"
-// (post-completion). Checkpoints exist so we still get a diagnostic when a
-// crashing RemoteCall takes SpringBoard down (and Cyanide with it) before
-// the post-completion upload fires.
-static void cyanide_upload_log_with_kind(NSString *kind) {
+// kind = "milestone" (important chain transition) or "final"
+// (post-completion). Milestones are explicit so uploads line up with exploit,
+// RemoteCall, tweak, and live-loop boundaries instead of timer noise.
+static void cyanide_upload_log_with_kind_event(NSString *kind, NSString *event) {
     if (![[NSUserDefaults standardUserDefaults] boolForKey:kSettingsLogUploadEnabled]) return;
     NSString *path = log_most_recent_session_path();
     if (!path) return;
@@ -3533,10 +3568,11 @@ static void cyanide_upload_log_with_kind(NSString *kind) {
         @"log_file    : %@\n"
         @"session_id  : %@\n"
         @"kind        : %@\n"
+        @"event       : %@\n"
         @"seq         : %d\n"
         @"==============================\n\n",
         appVersion, appBuild, iosVersion, machine, path.lastPathComponent,
-        sessionId, kind, seq];
+        sessionId, kind, event ?: @"", seq];
 
     NSDictionary *body = @{
         @"log": [header stringByAppendingString:rawLog],
@@ -3549,6 +3585,7 @@ static void cyanide_upload_log_with_kind(NSString *kind) {
             @"device":     machine,
             @"sessionId":  sessionId,
             @"kind":       kind,
+            @"event":      event ?: @"",
             @"seq":        @(seq),
         }
     };
@@ -3559,50 +3596,70 @@ static void cyanide_upload_log_with_kind(NSString *kind) {
     req.HTTPMethod = @"POST";
     [req setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
     req.HTTPBody = data;
-    printf("[LOG] uploading diagnostic (%s seq=%d, %zu bytes)...\n",
-           kind.UTF8String, seq, (size_t)data.length);
+    printf("[LOG] uploading diagnostic (%s%s%s seq=%d, %zu bytes)...\n",
+           kind.UTF8String,
+           event.length ? ":" : "",
+           event.length ? event.UTF8String : "",
+           seq,
+           (size_t)data.length);
     [[[NSURLSession sharedSession] dataTaskWithRequest:req completionHandler:^(NSData *d, NSURLResponse *r, NSError *e) {
         if (e) {
-            printf("[LOG] upload %s failed: %s\n", kind.UTF8String, e.localizedDescription.UTF8String);
+            printf("[LOG] upload %s%s%s failed: %s\n",
+                   kind.UTF8String,
+                   event.length ? ":" : "",
+                   event.length ? event.UTF8String : "",
+                   e.localizedDescription.UTF8String);
         } else {
             NSHTTPURLResponse *http = (NSHTTPURLResponse *)r;
-            printf("[LOG] upload %s ok: HTTP %ld\n", kind.UTF8String, (long)http.statusCode);
+            printf("[LOG] upload %s%s%s ok: HTTP %ld\n",
+                   kind.UTF8String,
+                   event.length ? ":" : "",
+                   event.length ? event.UTF8String : "",
+                   (long)http.statusCode);
         }
     }] resume];
+}
+
+static void cyanide_upload_log_with_kind(NSString *kind) {
+    cyanide_upload_log_with_kind_event(kind, nil);
+}
+
+static void cyanide_upload_log_milestone(NSString *event) {
+    if (!event.length) return;
+
+    @synchronized ([NSUserDefaults standardUserDefaults]) {
+        if (!g_cyanide_upload_milestones)
+            g_cyanide_upload_milestones = [NSMutableSet set];
+        if ([g_cyanide_upload_milestones containsObject:event])
+            return;
+        [g_cyanide_upload_milestones addObject:event];
+    }
+
+    cyanide_upload_log_with_kind_event(@"milestone", event);
 }
 
 static void cyanide_upload_log_if_enabled(void) {
     cyanide_upload_log_with_kind(@"final");
 }
 
-// Begin periodic checkpoint uploads. First fires quickly (3s) so even a chain
-// that crashes during initial kexploit setup leaves a snapshot behind; then
-// every 8s. Cancelled in the run's @finally before the "final" upload so the
-// timer never races the closing snapshot.
+// Begin a diagnostic upload session. Uploads are milestone-driven; this no
+// longer starts the old 3s/8s periodic checkpoint timer.
 static void cyanide_start_session_uploads(void) {
     if (![[NSUserDefaults standardUserDefaults] boolForKey:kSettingsLogUploadEnabled]) return;
     if (g_cyanide_upload_timer) return;
 
     g_cyanide_upload_session_id = [[NSUUID UUID] UUIDString];
+    @synchronized ([NSUserDefaults standardUserDefaults]) {
+        g_cyanide_upload_milestones = [NSMutableSet set];
+    }
     g_cyanide_upload_seq = 0;
-
-    dispatch_queue_t q = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
-    dispatch_source_t t = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, q);
-    dispatch_source_set_timer(t,
-        dispatch_time(DISPATCH_TIME_NOW, (int64_t)(3 * NSEC_PER_SEC)),
-        (uint64_t)(8 * NSEC_PER_SEC),
-        (uint64_t)(2 * NSEC_PER_SEC));
-    dispatch_source_set_event_handler(t, ^{
-        cyanide_upload_log_with_kind(@"checkpoint");
-    });
-    dispatch_resume(t);
-    g_cyanide_upload_timer = t;
 }
 
 static void cyanide_stop_session_uploads(void) {
-    if (!g_cyanide_upload_timer) return;
-    dispatch_source_cancel(g_cyanide_upload_timer);
-    g_cyanide_upload_timer = NULL;
+    if (g_cyanide_upload_timer) {
+        dispatch_source_cancel(g_cyanide_upload_timer);
+        g_cyanide_upload_timer = NULL;
+    }
 }
 
 // Contact owner (zeroxjf) with the diagnostic log inline in the body. Build
