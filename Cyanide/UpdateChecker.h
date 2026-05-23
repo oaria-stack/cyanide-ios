@@ -20,6 +20,11 @@ NS_ASSUME_NONNULL_BEGIN
 // No-op if already checked this app process lifetime, or on network failure.
 - (void)checkForUpdatesIfNeededFrom:(UIViewController *)presenter;
 
+// User-initiated check. Ignores the per-launch dedupe, the skipped-version
+// flag, and the snooze window. Always shows feedback: "Up to Date",
+// "Update Available", or "Check Failed".
+- (void)checkForUpdatesManuallyFrom:(UIViewController *)presenter;
+
 @end
 
 NS_ASSUME_NONNULL_END

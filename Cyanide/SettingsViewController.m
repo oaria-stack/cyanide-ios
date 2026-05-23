@@ -22,6 +22,7 @@
 #import "installer/Package.h"
 #import "installer/PackageCatalog.h"
 #import "installer/PackageQueue.h"
+#import "UpdateChecker.h"
 #import <WebKit/WebKit.h>
 #import <MessageUI/MessageUI.h>
 #import <notify.h>
@@ -3400,7 +3401,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
             NSInteger n = (NSInteger)settings_changelog_entries().count;
             return n > 0 ? n + 1 : 0;
         }
-        case RootSectionActions:        return 3;
+        case RootSectionActions:        return 4;
         case RootSectionTweakBundles:   return (NSInteger)self.tweakBundleRows.count;
         case RootSectionSystemBundles:  return (NSInteger)self.systemBundleRows.count;
         case RootSectionAbout:          return 4;
@@ -3959,6 +3960,7 @@ void cyanide_present_contact(UIViewController *host)
         BOOL rowEnabled = supported;
         if (indexPath.row == 0) rowEnabled = cleanupEnabled;
         if (indexPath.row == 2) rowEnabled = anyInstalledOrQueued;
+        if (indexPath.row == 3) rowEnabled = YES;     // network check is always allowed
 
         UILabel *primary = [[UILabel alloc] init];
         primary.translatesAutoresizingMaskIntoConstraints = NO;
@@ -3970,9 +3972,12 @@ void cyanide_present_contact(UIViewController *host)
         } else if (indexPath.row == 1) {
             primary.text = g_settings_respring_cleanup_running ? @" " : @"Respring";
             primary.textColor = supported ? UIColor.systemOrangeColor : UIColor.tertiaryLabelColor;
-        } else {
+        } else if (indexPath.row == 2) {
             primary.text = @"Reset All Packages";
             primary.textColor = anyInstalledOrQueued ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
+        } else {
+            primary.text = @"Check for Updates";
+            primary.textColor = self.view.tintColor;
         }
         [cell.contentView addSubview:primary];
 
@@ -4027,6 +4032,9 @@ void cyanide_present_contact(UIViewController *host)
                 ? @"Uninstall every package and clear the pending queue. SpringBoard patches already applied this session stay until respring/reboot."
                 : @"Nothing installed or queued.";
             detailColor = anyInstalledOrQueued ? UIColor.secondaryLabelColor : UIColor.tertiaryLabelColor;
+        } else if (indexPath.row == 3) {
+            detailText  = @"Pings GitHub for the latest release. Run this if the launch prompt didn't appear.";
+            detailColor = UIColor.secondaryLabelColor;
         }
         if (detailText) {
             UILabel *detail = [[UILabel alloc] init];
@@ -4392,6 +4400,8 @@ void cyanide_present_contact(UIViewController *host)
                 [self.tableView reloadData];
             }]];
             settings_present_controller(ac, self);
+        } else if (indexPath.row == 3) {
+            [[UpdateChecker shared] checkForUpdatesManuallyFrom:self];
         }
     }
 

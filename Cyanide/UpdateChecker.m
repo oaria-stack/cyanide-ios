@@ -127,6 +127,119 @@ static int compare_versions(NSString *a, NSString *b)
     [task resume];
 }
 
+- (void)checkForUpdatesManuallyFrom:(UIViewController *)presenter
+{
+    if (!presenter) return;
+
+    printf("[UPDATE] manual check requested (current=%s)\n",
+           self.currentVersion.UTF8String);
+
+    UIAlertController *checking = [UIAlertController
+        alertControllerWithTitle:@"Checking for Updates…"
+                         message:@"\n\n"
+                  preferredStyle:UIAlertControllerStyleAlert];
+    UIActivityIndicatorView *spin =
+        [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
+    spin.translatesAutoresizingMaskIntoConstraints = NO;
+    [spin startAnimating];
+    [checking.view addSubview:spin];
+    [NSLayoutConstraint activateConstraints:@[
+        [spin.centerXAnchor constraintEqualToAnchor:checking.view.centerXAnchor],
+        [spin.bottomAnchor  constraintEqualToAnchor:checking.view.bottomAnchor constant:-20],
+    ]];
+
+    UIViewController *top = presenter;
+    while (top.presentedViewController) top = top.presentedViewController;
+    [top presentViewController:checking animated:YES completion:nil];
+
+    NSURL *url = [NSURL URLWithString:kReleasesAPI];
+    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
+                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                                   timeoutInterval:10.0];
+    [req setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
+
+    __weak typeof(self) weakSelf = self;
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession]
+        dataTaskWithRequest:req
+          completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error)
+    {
+        __strong typeof(weakSelf) self_ = weakSelf;
+        NSString *current = self_ ? [self_ currentVersion] : @"unknown";
+
+        NSString *failureReason = nil;
+        NSString *latest = nil;
+        NSString *htmlURL = nil;
+        NSString *notes = nil;
+
+        if (error || !data) {
+            failureReason = error ? error.localizedDescription : @"No response from GitHub.";
+        } else {
+            NSError *jsonErr = nil;
+            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
+            if (jsonErr || ![obj isKindOfClass:NSDictionary.class]) {
+                failureReason = @"Could not parse the release feed.";
+            } else {
+                NSDictionary *release = obj;
+                id tagObj  = release[@"tag_name"];
+                id urlObj  = release[@"html_url"];
+                id bodyObj = release[@"body"];
+                if (![tagObj isKindOfClass:NSString.class] || ![urlObj isKindOfClass:NSString.class]) {
+                    failureReason = @"Release feed was missing fields.";
+                } else {
+                    latest  = self_ ? [self_ normalizeTag:tagObj] : tagObj;
+                    htmlURL = urlObj;
+                    notes   = [bodyObj isKindOfClass:NSString.class] ? bodyObj : nil;
+                }
+            }
+        }
+
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [checking dismissViewControllerAnimated:YES completion:^{
+                if (failureReason) {
+                    printf("[UPDATE] manual check failed: %s\n", failureReason.UTF8String);
+                    UIAlertController *ac = [UIAlertController
+                        alertControllerWithTitle:@"Check Failed"
+                                         message:[NSString stringWithFormat:
+                                                  @"Couldn't reach GitHub.\n\n%@", failureReason]
+                                  preferredStyle:UIAlertControllerStyleAlert];
+                    [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+                    UIViewController *top2 = presenter;
+                    while (top2.presentedViewController) top2 = top2.presentedViewController;
+                    [top2 presentViewController:ac animated:YES completion:nil];
+                    return;
+                }
+
+                if (compare_versions(latest, current) <= 0) {
+                    printf("[UPDATE] manual check: up to date (current=%s latest=%s)\n",
+                           current.UTF8String, latest.UTF8String);
+                    UIAlertController *ac = [UIAlertController
+                        alertControllerWithTitle:@"Up to Date"
+                                         message:[NSString stringWithFormat:
+                                                  @"You're on the latest release.\n\nInstalled: %@\nLatest: %@",
+                                                  current, latest]
+                                  preferredStyle:UIAlertControllerStyleAlert];
+                    [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+                    UIViewController *top2 = presenter;
+                    while (top2.presentedViewController) top2 = top2.presentedViewController;
+                    [top2 presentViewController:ac animated:YES completion:nil];
+                    return;
+                }
+
+                printf("[UPDATE] manual check: update available %s (current %s)\n",
+                       latest.UTF8String, current.UTF8String);
+                if (self_) {
+                    [self_ presentUpdateAlertFrom:presenter
+                                           latest:latest
+                                          current:current
+                                              url:htmlURL
+                                            notes:notes];
+                }
+            }];
+        });
+    }];
+    [task resume];
+}
+
 - (void)presentUpdateAlertFrom:(UIViewController *)presenter
                         latest:(NSString *)latest
                        current:(NSString *)current
