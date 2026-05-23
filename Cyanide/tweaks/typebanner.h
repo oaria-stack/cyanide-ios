@@ -15,27 +15,32 @@
 
 #ifdef __OBJC__
 #import <Foundation/Foundation.h>
+#import "../TaskRop/RemoteCall.h"
 
 // SpringBoard-side: show the typing banner with the given display name.
 // Must be called inside an init_remote_call("SpringBoard", ...) session.
 // Pass nil/empty to render as "Someone is typing…".
 bool typebanner_show_in_springboard_session(NSString *displayName);
+bool typebanner_show_in_springboard_remote_session(RemoteCallSession *session, NSString *displayName);
 
 // SpringBoard-side: fade out and hide the banner. Idempotent.
 // Must be called inside an init_remote_call("SpringBoard", ...) session.
 bool typebanner_hide_in_springboard_session(void);
+bool typebanner_hide_in_springboard_remote_session(RemoteCallSession *session);
 
 // MobileSMS-side: walk the active view hierarchy and return the typing
 // display name if any conversation row / open conversation is currently
 // showing a typing indicator. Returns nil if nothing is typing.
 // Must be called inside an init_remote_call("MobileSMS", ...) session.
 NSString *typebanner_poll_in_mobilesms_session(void);
+NSString *typebanner_poll_in_mobilesms_remote_session(RemoteCallSession *session);
 
 // MobileSMS-side: walk the view hierarchy and log the class name and a
 // summary of typing-related selectors for every UITableViewCell-shaped view.
 // Use for one-shot diagnostics when the regular poll returns nothing.
 // Must be called inside an init_remote_call("MobileSMS", ...) session.
 void typebanner_diagnose_in_mobilesms_session(void);
+void typebanner_diagnose_in_mobilesms_remote_session(RemoteCallSession *session);
 #endif
 
 // One-shot orchestration from Cyanide's process. Tears down any existing

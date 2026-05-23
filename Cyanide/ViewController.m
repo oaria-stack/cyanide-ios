@@ -153,10 +153,9 @@ int escape_sbx_demo(void) {
 }
 
 extern uint64_t g_kernel_slide;
-extern uint64_t g_RC_trojanMem;
 extern int64_t sandbox_extension_consume(const char *extension_token);
 int escape_sbx_demo2_in_session(void) {
-    uint64_t memRemote = g_RC_trojanMem;
+    uint64_t memRemote = remote_call_trojan_mem();
     if (!memRemote) {
         printf("[%s:%d] no active remote-call session\n", __FUNCTION__, __LINE__);
         return -1;

@@ -427,3 +427,140 @@ uint64_t r_ivar_value(uint64_t obj, const char *ivarName)
                                             ivar, 0, 0, 0, 0, 0, 0, 0);
     return remote_read64(obj + offset);
 }
+
+#ifdef __OBJC__
+#define R_SESSION_RETURN(session, type, fallback, expr) do { \
+    if (!(session)) return (expr); \
+    __block type result = (fallback); \
+    remote_call_with_session((session), ^{ result = (expr); }); \
+    return result; \
+} while (0)
+
+#define R_SESSION_VOID(session, expr) do { \
+    if (!(session)) { expr; return; } \
+    remote_call_with_session((session), ^{ expr; }); \
+} while (0)
+
+uint64_t r_session_dlsym_call(RemoteCallSession *session, int timeout, const char *fnName,
+                              uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3,
+                              uint64_t a4, uint64_t a5, uint64_t a6, uint64_t a7)
+{
+    R_SESSION_RETURN(session, uint64_t, 0,
+                     r_dlsym_call(timeout, fnName, a0, a1, a2, a3, a4, a5, a6, a7));
+}
+
+uint64_t r_session_alloc_str(RemoteCallSession *session, const char *s)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_alloc_str(s));
+}
+
+void r_session_free(RemoteCallSession *session, uint64_t ptr)
+{
+    R_SESSION_VOID(session, r_free(ptr));
+}
+
+uint64_t r_session_sel(RemoteCallSession *session, const char *name)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_sel(name));
+}
+
+uint64_t r_session_class(RemoteCallSession *session, const char *name)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_class(name));
+}
+
+uint64_t r_session_msg(RemoteCallSession *session, uint64_t obj, uint64_t sel,
+                       uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_msg(obj, sel, a0, a1, a2, a3));
+}
+
+uint64_t r_session_msg2(RemoteCallSession *session, uint64_t obj, const char *selName,
+                        uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_msg2(obj, selName, a0, a1, a2, a3));
+}
+
+uint64_t r_session_msg_main(RemoteCallSession *session, uint64_t obj, uint64_t sel,
+                            uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_msg_main(obj, sel, a0, a1, a2, a3));
+}
+
+uint64_t r_session_msg2_main(RemoteCallSession *session, uint64_t obj, const char *selName,
+                             uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_msg2_main(obj, selName, a0, a1, a2, a3));
+}
+
+void r_session_msg2_main_async(RemoteCallSession *session, uint64_t obj, const char *selName,
+                               uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3)
+{
+    R_SESSION_VOID(session, r_msg2_main_async(obj, selName, a0, a1, a2, a3));
+}
+
+uint64_t r_session_msg_main_raw(RemoteCallSession *session, uint64_t obj, uint64_t sel,
+                                const void *a0, size_t a0Size,
+                                const void *a1, size_t a1Size,
+                                const void *a2, size_t a2Size,
+                                const void *a3, size_t a3Size)
+{
+    R_SESSION_RETURN(session, uint64_t, 0,
+                     r_msg_main_raw(obj, sel, a0, a0Size, a1, a1Size, a2, a2Size, a3, a3Size));
+}
+
+uint64_t r_session_msg2_main_raw(RemoteCallSession *session, uint64_t obj, const char *selName,
+                                 const void *a0, size_t a0Size,
+                                 const void *a1, size_t a1Size,
+                                 const void *a2, size_t a2Size,
+                                 const void *a3, size_t a3Size)
+{
+    R_SESSION_RETURN(session, uint64_t, 0,
+                     r_msg2_main_raw(obj, selName, a0, a0Size, a1, a1Size, a2, a2Size, a3, a3Size));
+}
+
+bool r_session_msg2_main_struct_ret(RemoteCallSession *session, uint64_t obj, const char *selName,
+                                    void *outBuf, size_t outSize,
+                                    const void *a0, size_t a0Size,
+                                    const void *a1, size_t a1Size,
+                                    const void *a2, size_t a2Size,
+                                    const void *a3, size_t a3Size)
+{
+    R_SESSION_RETURN(session, bool, false,
+                     r_msg2_main_struct_ret(obj, selName, outBuf, outSize,
+                                            a0, a0Size, a1, a1Size, a2, a2Size, a3, a3Size));
+}
+
+uint64_t r_session_perform_main(RemoteCallSession *session, uint64_t obj, uint64_t sel, uint64_t object, bool wait)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_perform_main(obj, sel, object, wait));
+}
+
+uint64_t r_session_cfstr(RemoteCallSession *session, const char *s)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_cfstr(s));
+}
+
+uint64_t r_session_nsstr_retained(RemoteCallSession *session, const char *s)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_nsstr_retained(s));
+}
+
+bool r_session_responds(RemoteCallSession *session, uint64_t obj, const char *selName)
+{
+    R_SESSION_RETURN(session, bool, false, r_responds(obj, selName));
+}
+
+bool r_session_responds_main(RemoteCallSession *session, uint64_t obj, const char *selName)
+{
+    R_SESSION_RETURN(session, bool, false, r_responds_main(obj, selName));
+}
+
+uint64_t r_session_ivar_value(RemoteCallSession *session, uint64_t obj, const char *ivarName)
+{
+    R_SESSION_RETURN(session, uint64_t, 0, r_ivar_value(obj, ivarName));
+}
+
+#undef R_SESSION_VOID
+#undef R_SESSION_RETURN
+#endif

@@ -56,33 +56,86 @@ extern kern_return_t mach_vm_deallocate(task_t task, mach_vm_address_t address, 
 #define BREAKPOINT_ENABLE 481
 #define BREAKPOINT_DISABLE 0
 
-uint64_t g_RC_taskAddr;
 uint64_t g_RC_targetProcOverride = 0;
-bool g_RC_creatingExtraThread;
-mach_port_t g_RC_firstExceptionPort;
-mach_port_t g_RC_secondExceptionPort;
-uint64_t g_RC_firstExceptionPortAddr;
-uint64_t g_RC_secondExceptionPortAddr;
-pthread_t g_RC_dummyThread;
-mach_port_t g_RC_dummyThreadMach;
-uint64_t g_RC_dummyThreadAddr;
-uint64_t g_RC_dummyThreadTro;
-uint64_t g_RC_selfThreadAddr;
-uint32_t g_RC_selfThreadCtid;
-arm_thread_state64_internal g_RC_originalState;
-uint64_t g_RC_vmMap;
-uint64_t g_RC_callThreadAddr;
-uint64_t g_RC_trojanThreadAddr;
-int g_RC_pid;
-bool g_RC_success = true;
 uint64_t g_RC_gadgetPacia = 0;
 
-NSMutableArray<NSNumber *> *g_RC_threadList = nil;
-uint64_t g_RC_trojanMem = 0;
-struct VMShmem g_RC_shmemCache[SHMEM_CACHE_SIZE];
-static uint64_t g_RC_shmemUseCounter[SHMEM_CACHE_SIZE];
-static uint64_t g_RC_shmemClock = 0;
-static uint64_t g_RC_shmemEvictions = 0;
+typedef struct RemoteCallState {
+    uint64_t taskAddr;
+    bool creatingExtraThread;
+    mach_port_t firstExceptionPort;
+    mach_port_t secondExceptionPort;
+    uint64_t firstExceptionPortAddr;
+    uint64_t secondExceptionPortAddr;
+    pthread_t dummyThread;
+    mach_port_t dummyThreadMach;
+    uint64_t dummyThreadAddr;
+    uint64_t dummyThreadTro;
+    uint64_t selfThreadAddr;
+    uint32_t selfThreadCtid;
+    arm_thread_state64_internal originalState;
+    uint64_t vmMap;
+    uint64_t callThreadAddr;
+    uint64_t trojanThreadAddr;
+    int pid;
+    bool success;
+    NSMutableArray<NSNumber *> *threadList;
+    uint64_t trojanMem;
+    struct VMShmem shmemCache[SHMEM_CACHE_SIZE];
+    uint64_t shmemUseCounter[SHMEM_CACHE_SIZE];
+    uint64_t shmemClock;
+    uint64_t shmemEvictions;
+} RemoteCallState;
+
+static RemoteCallState g_RC_defaultState = { .success = true };
+static __thread RemoteCallState *g_RC_currentState;
+
+@interface RemoteCallSession ()
+- (RemoteCallState *)remoteCallStatePointer;
+@end
+
+static RemoteCallState *remote_call_current_state(void)
+{
+    if (!g_RC_currentState)
+        g_RC_currentState = &g_RC_defaultState;
+    return g_RC_currentState;
+}
+
+static RemoteCallState *remote_call_push_state(RemoteCallState *state)
+{
+    RemoteCallState *previous = remote_call_current_state();
+    g_RC_currentState = state ?: &g_RC_defaultState;
+    return previous;
+}
+
+static void remote_call_pop_state(RemoteCallState *previous)
+{
+    g_RC_currentState = previous ?: &g_RC_defaultState;
+}
+
+#define g_RC_taskAddr              (remote_call_current_state()->taskAddr)
+#define g_RC_creatingExtraThread   (remote_call_current_state()->creatingExtraThread)
+#define g_RC_firstExceptionPort    (remote_call_current_state()->firstExceptionPort)
+#define g_RC_secondExceptionPort   (remote_call_current_state()->secondExceptionPort)
+#define g_RC_firstExceptionPortAddr  (remote_call_current_state()->firstExceptionPortAddr)
+#define g_RC_secondExceptionPortAddr (remote_call_current_state()->secondExceptionPortAddr)
+#define g_RC_dummyThread           (remote_call_current_state()->dummyThread)
+#define g_RC_dummyThreadMach       (remote_call_current_state()->dummyThreadMach)
+#define g_RC_dummyThreadAddr       (remote_call_current_state()->dummyThreadAddr)
+#define g_RC_dummyThreadTro        (remote_call_current_state()->dummyThreadTro)
+#define g_RC_selfThreadAddr        (remote_call_current_state()->selfThreadAddr)
+#define g_RC_selfThreadCtid        (remote_call_current_state()->selfThreadCtid)
+#define g_RC_originalState         (remote_call_current_state()->originalState)
+#define g_RC_vmMap                 (remote_call_current_state()->vmMap)
+#define g_RC_callThreadAddr        (remote_call_current_state()->callThreadAddr)
+#define g_RC_trojanThreadAddr      (remote_call_current_state()->trojanThreadAddr)
+#define g_RC_pid                   (remote_call_current_state()->pid)
+#define g_RC_success               (remote_call_current_state()->success)
+#define g_RC_threadList            (remote_call_current_state()->threadList)
+#define g_RC_trojanMem             (remote_call_current_state()->trojanMem)
+#define g_RC_shmemCache            (remote_call_current_state()->shmemCache)
+#define g_RC_shmemUseCounter       (remote_call_current_state()->shmemUseCounter)
+#define g_RC_shmemClock            (remote_call_current_state()->shmemClock)
+#define g_RC_shmemEvictions        (remote_call_current_state()->shmemEvictions)
 
 static bool remote_call_verbose_logging(void)
 {
@@ -863,6 +916,11 @@ bool remote_writeStr(uint64_t dst, const char *str)
     return remote_write(dst, str, len);
 }
 
+uint64_t remote_call_trojan_mem(void)
+{
+    return g_RC_trojanMem;
+}
+
 uint64_t retry_first_thread(bool useMigFilterBypass) {
     if (useMigFilterBypass)
         mig_bypass_pause();
@@ -1223,4 +1281,168 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     printf("[%s:%d] Finished successfully\n", __FUNCTION__, __LINE__);
     
     return 0;
+}
+
+@implementation RemoteCallSession {
+    RemoteCallState _state;
+}
+
+- (instancetype)initWithProcess:(NSString *)process useMigFilterBypass:(BOOL)useMigFilterBypass
+{
+    self = [super init];
+    if (!self)
+        return nil;
+
+    memset(&_state, 0, sizeof(_state));
+    _state.success = true;
+    _state.threadList = [NSMutableArray new];
+
+    const char *processName = process.UTF8String;
+    if (!processName)
+        return nil;
+
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    int result = init_remote_call(processName, useMigFilterBypass);
+    remote_call_pop_state(previous);
+
+    if (result != 0)
+        return nil;
+
+    return self;
+}
+
+- (uint64_t)taskAddr
+{
+    return _state.taskAddr;
+}
+
+- (uint64_t)trojanMem
+{
+    return _state.trojanMem;
+}
+
+- (int)pid
+{
+    return _state.pid;
+}
+
+- (uint64_t)doRemoteCallStableWithTimeout:(int)timeout
+                             functionName:(const char *)name
+                                       x0:(uint64_t)x0
+                                       x1:(uint64_t)x1
+                                       x2:(uint64_t)x2
+                                       x3:(uint64_t)x3
+                                       x4:(uint64_t)x4
+                                       x5:(uint64_t)x5
+                                       x6:(uint64_t)x6
+                                       x7:(uint64_t)x7
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    uint64_t result = do_remote_call_stable(timeout, name, x0, x1, x2, x3, x4, x5, x6, x7);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (uint64_t)doRemoteCallStableWithTimeout:(int)timeout
+                          functionAddress:(uint64_t)pcAddr
+                             functionName:(const char *)name
+                                       x0:(uint64_t)x0
+                                       x1:(uint64_t)x1
+                                       x2:(uint64_t)x2
+                                       x3:(uint64_t)x3
+                                       x4:(uint64_t)x4
+                                       x5:(uint64_t)x5
+                                       x6:(uint64_t)x6
+                                       x7:(uint64_t)x7
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    uint64_t result = do_remote_call_stable_addr(timeout, pcAddr, name, x0, x1, x2, x3, x4, x5, x6, x7);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (BOOL)remoteRead:(uint64_t)src to:(void *)dst size:(uint64_t)size
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    BOOL result = remote_read(src, dst, size);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (uint64_t)remoteRead64:(uint64_t)src
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    uint64_t result = remote_read64(src);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (BOOL)remoteWrite:(uint64_t)dst from:(const void *)src size:(uint64_t)size
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    BOOL result = remote_write(dst, src, size);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (BOOL)remoteWrite64:(uint64_t)dst value:(uint64_t)val
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    BOOL result = remote_write64(dst, val);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (BOOL)remoteWriteString:(uint64_t)dst value:(const char *)str
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    BOOL result = remote_writeStr(dst, str);
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (int)destroyRemoteCall
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    int result = destroy_remote_call();
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (void)abandonRemoteCall
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    abandon_remote_call();
+    remote_call_pop_state(previous);
+}
+
+- (BOOL)hasLocalState
+{
+    RemoteCallState *previous = remote_call_push_state(&_state);
+    BOOL result = remote_call_has_local_state();
+    remote_call_pop_state(previous);
+    return result;
+}
+
+- (RemoteCallState *)remoteCallStatePointer
+{
+    return &_state;
+}
+
+@end
+
+void remote_call_with_session(RemoteCallSession *session, void (^block)(void))
+{
+    if (!block)
+        return;
+
+    if (!session) {
+        block();
+        return;
+    }
+
+    RemoteCallState *state = [session remoteCallStatePointer];
+    RemoteCallState *previous = remote_call_push_state(state);
+    block();
+    remote_call_pop_state(previous);
 }

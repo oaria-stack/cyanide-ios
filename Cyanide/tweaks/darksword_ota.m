@@ -26,8 +26,6 @@
 #import <sys/stat.h>
 #import <unistd.h>
 
-extern uint64_t g_RC_trojanMem;
-
 static const char *kOTAPlistDirPath = "/private/var/db/com.apple.xpc.launchd";
 static const char *kOTAPlistFileName = "disabled.plist";
 static const char *kOTAPlistTempFileName = "disabled.plist.cyanide.tmp";
@@ -631,9 +629,10 @@ static bool ota_disable_original_remote_call(void)
         return false;
     }
 
-    remote_write(g_RC_trojanMem, kOTAOriginalPlistPath, strlen(kOTAOriginalPlistPath) + 1);
+    uint64_t scratchRemote = remote_call_trojan_mem();
+    remote_write(scratchRemote, kOTAOriginalPlistPath, strlen(kOTAOriginalPlistPath) + 1);
     uint64_t fd = do_remote_call_stable(1000, "open",
-                                        g_RC_trojanMem,
+                                        scratchRemote,
                                         0,
                                         0,
                                         0,
@@ -689,9 +688,9 @@ static bool ota_disable_original_remote_call(void)
                                                                       error:nil];
         if (outData.length > 0) {
             remote_write(fileBuf, outData.bytes, outData.length);
-            remote_write(g_RC_trojanMem, kOTAOriginalPlistPath, strlen(kOTAOriginalPlistPath) + 1);
+            remote_write(scratchRemote, kOTAOriginalPlistPath, strlen(kOTAOriginalPlistPath) + 1);
             uint64_t wfd = do_remote_call_stable(1000, "open",
-                                                 g_RC_trojanMem,
+                                                 scratchRemote,
                                                  (uint64_t)(O_WRONLY | O_CREAT | O_TRUNC),
                                                  0644,
                                                  0,

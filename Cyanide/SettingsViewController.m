@@ -1977,13 +1977,14 @@ static void settings_start_typebanner_live_loop(void)
         } @finally {
             // Best-effort hide the banner before exiting — drops any stale
             // pill that might persist in SpringBoard's window list.
-            if (init_remote_call("SpringBoard", false) == 0) {
+            RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+            if (springboardSession) {
                 @try {
-                    typebanner_hide_in_springboard_session();
+                    typebanner_hide_in_springboard_remote_session(springboardSession);
                 } @catch (NSException *e) {
                     printf("[SETTINGS] TypeBanner final hide exception: %s\n", e.reason.UTF8String);
                 }
-                destroy_remote_call();
+                [springboardSession destroyRemoteCall];
             }
             typebanner_forget_remote_state();
 
@@ -2186,14 +2187,15 @@ static void settings_schedule_live_apply_for_key(NSString *key)
             // also hide on its own way out, but doing it here gets the pill
             // off the screen faster after the user toggles off.
             dispatch_async(dispatch_get_global_queue(0, 0), ^{
-                if (init_remote_call("SpringBoard", false) == 0) {
+                RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+                if (springboardSession) {
                     @try {
-                        typebanner_hide_in_springboard_session();
+                        typebanner_hide_in_springboard_remote_session(springboardSession);
                     } @catch (NSException *e) {
                         printf("[SETTINGS] TypeBanner toggle-off hide exception: %s\n",
                                e.reason.UTF8String);
                     }
-                    destroy_remote_call();
+                    [springboardSession destroyRemoteCall];
                 }
                 typebanner_forget_remote_state();
             });
@@ -4318,10 +4320,8 @@ void cyanide_present_contact(UIViewController *host)
                         return;
                     }
 
-                    // Pause the live loop while the test owns sessions, then
-                    // restart it after we're done. Otherwise concurrent
-                    // MobileSMS init_remote_call between the loop and the
-                    // test corrupts state ("Don't receive first exception").
+                    // Pause the live loop while the test runs so the one-shot
+                    // diagnostics do not race the periodic banner updater.
                     BOOL liveLoopWasRunning = g_typebanner_live_running != 0;
                     if (liveLoopWasRunning) {
                         g_typebanner_live_stop_requested = 1;
@@ -4338,11 +4338,12 @@ void cyanide_present_contact(UIViewController *host)
 
                     log_user("[TYPEBANNER] Test: polling MobileSMS for typing indicators…\n");
                     NSString *detected = nil;
-                    if (init_remote_call("MobileSMS", false) != 0) {
+                    RemoteCallSession *mobileSession = [[RemoteCallSession alloc] initWithProcess:@"MobileSMS" useMigFilterBypass:NO];
+                    if (!mobileSession) {
                         log_user("[TYPEBANNER] Messages.app is not running. Open Messages, then tap Test again.\n");
                     } else {
                         @try {
-                            detected = typebanner_poll_in_mobilesms_session();
+                            detected = typebanner_poll_in_mobilesms_remote_session(mobileSession);
                         } @catch (NSException *e) {
                             log_user("[TYPEBANNER] MobileSMS poll threw: %s\n", e.reason.UTF8String);
                         }
@@ -4354,12 +4355,12 @@ void cyanide_present_contact(UIViewController *host)
                         if (detected.length == 0) {
                             log_user("[TYPEBANNER] No typing indicator found via 'showTypingIndicator'. Running discovery walk to dump cell classes/selectors…\n");
                             @try {
-                                typebanner_diagnose_in_mobilesms_session();
+                                typebanner_diagnose_in_mobilesms_remote_session(mobileSession);
                             } @catch (NSException *e) {
                                 log_user("[TYPEBANNER] Diagnose threw: %s\n", e.reason.UTF8String);
                             }
                         }
-                        destroy_remote_call();
+                        [mobileSession destroyRemoteCall];
                     }
 
                     if (detected.length > 0) {
@@ -4369,23 +4370,21 @@ void cyanide_present_contact(UIViewController *host)
                         log_user("[TYPEBANNER] Showing a one-shot demo banner so you can confirm the SpringBoard render path.\n");
                     }
 
-                    if (init_remote_call("SpringBoard", false) != 0) {
+                    RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+                    if (!springboardSession) {
                         log_user("[TYPEBANNER] SpringBoard not reachable; cannot show banner.\n");
                     } else {
                         bool ok = false;
                         @try {
                             NSString *label = detected.length > 0 ? detected : @"TypeBanner demo";
-                            ok = typebanner_show_in_springboard_session(label);
+                            ok = typebanner_show_in_springboard_remote_session(springboardSession, label);
                         } @catch (NSException *e) {
                             log_user("[TYPEBANNER] SpringBoard show threw: %s\n", e.reason.UTF8String);
                         }
-                        destroy_remote_call();
                         log_user("[TYPEBANNER] show=%d. Banner auto-hides in 5s.\n", ok);
                         sleep(5);
-                        if (init_remote_call("SpringBoard", false) == 0) {
-                            @try { typebanner_hide_in_springboard_session(); } @catch (NSException *e) {}
-                            destroy_remote_call();
-                        }
+                        @try { typebanner_hide_in_springboard_remote_session(springboardSession); } @catch (NSException *e) {}
+                        [springboardSession destroyRemoteCall];
                     }
 
                     if (liveLoopWasRunning) {

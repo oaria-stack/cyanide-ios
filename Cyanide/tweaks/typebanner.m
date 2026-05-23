@@ -286,6 +286,24 @@ bool typebanner_hide_in_springboard_session(void)
     return true;
 }
 
+bool typebanner_show_in_springboard_remote_session(RemoteCallSession *session, NSString *displayName)
+{
+    __block bool ok = false;
+    remote_call_with_session(session, ^{
+        ok = typebanner_show_in_springboard_session(displayName);
+    });
+    return ok;
+}
+
+bool typebanner_hide_in_springboard_remote_session(RemoteCallSession *session)
+{
+    __block bool ok = false;
+    remote_call_with_session(session, ^{
+        ok = typebanner_hide_in_springboard_session();
+    });
+    return ok;
+}
+
 void typebanner_forget_remote_state(void)
 {
     gTypeBannerWindow = 0;
@@ -460,6 +478,15 @@ NSString *typebanner_poll_in_mobilesms_session(void)
     return found;
 }
 
+NSString *typebanner_poll_in_mobilesms_remote_session(RemoteCallSession *session)
+{
+    __block NSString *result = nil;
+    remote_call_with_session(session, ^{
+        result = typebanner_poll_in_mobilesms_session();
+    });
+    return result;
+}
+
 #pragma mark - Diagnostic dump (MobileSMS side)
 
 // Walk the keyWindow's view tree and log every view whose class name contains
@@ -582,6 +609,13 @@ void typebanner_diagnose_in_mobilesms_session(void)
     printf("[TYPEBANNER] diag: done visited=%d\n", visited);
 }
 
+void typebanner_diagnose_in_mobilesms_remote_session(RemoteCallSession *session)
+{
+    remote_call_with_session(session, ^{
+        typebanner_diagnose_in_mobilesms_session();
+    });
+}
+
 #pragma mark - One-shot orchestrator
 
 static NSString *gTypeBannerLastName = nil;
@@ -591,14 +625,15 @@ bool typebanner_run_once(void)
     // Phase 1: poll MobileSMS for typing state.
     NSString *currentName = nil;
     bool mobileSMSRunning = false;
-    if (init_remote_call("MobileSMS", false) == 0) {
+    RemoteCallSession *mobileSession = [[RemoteCallSession alloc] initWithProcess:@"MobileSMS" useMigFilterBypass:NO];
+    if (mobileSession) {
         mobileSMSRunning = true;
         @try {
-            currentName = typebanner_poll_in_mobilesms_session();
+            currentName = typebanner_poll_in_mobilesms_remote_session(mobileSession);
         } @catch (NSException *e) {
             printf("[TYPEBANNER] MobileSMS poll exception: %s\n", e.reason.UTF8String);
         }
-        destroy_remote_call();
+        [mobileSession destroyRemoteCall];
     } else {
         printf("[TYPEBANNER] MobileSMS not running or unreachable\n");
     }
@@ -618,21 +653,22 @@ bool typebanner_run_once(void)
 
     if (!stateChanged) return true;
 
-    if (init_remote_call("SpringBoard", false) != 0) {
+    RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+    if (!springboardSession) {
         printf("[TYPEBANNER] SpringBoard not reachable\n");
         return false;
     }
     bool ok = false;
     @try {
         if (currentName.length > 0) {
-            ok = typebanner_show_in_springboard_session(currentName);
+            ok = typebanner_show_in_springboard_remote_session(springboardSession, currentName);
         } else {
-            ok = typebanner_hide_in_springboard_session();
+            ok = typebanner_hide_in_springboard_remote_session(springboardSession);
         }
     } @catch (NSException *e) {
         printf("[TYPEBANNER] SpringBoard update exception: %s\n", e.reason.UTF8String);
     }
-    destroy_remote_call();
+    [springboardSession destroyRemoteCall];
 
     gTypeBannerLastName = currentName ? [currentName copy] : nil;
     return ok;
