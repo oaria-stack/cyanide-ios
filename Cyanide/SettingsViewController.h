@@ -25,9 +25,19 @@ extern NSString * const kSettingsDSZeroWakeAnimation;
 extern NSString * const kSettingsDSZeroBacklightFade;
 extern NSString * const kSettingsDSDoubleTapToLock;
 
+extern NSString * const kSettingsLayoutExtrasEnabled;
+extern NSString * const kSettingsLayoutHomeExtraLeft;
+extern NSString * const kSettingsLayoutHomeExtraRight;
+extern NSString * const kSettingsLayoutHomeExtraTop;
+extern NSString * const kSettingsLayoutHomeExtraBottom;
+extern NSString * const kSettingsLayoutDockExtraHorizontal;
+extern NSString * const kSettingsLayoutHomeScalePct;
+extern NSString * const kSettingsLayoutDockScalePct;
+
 extern NSString * const kSettingsStatBarEnabled;
 extern NSString * const kSettingsStatBarCelsius;
-extern NSString * const kSettingsStatBarHideNet;
+extern NSString * const kSettingsStatBarShowNet;
+extern NSString * const kSettingsStatBarShowCPU;
 
 extern NSString * const kSettingsRSSIDisplayEnabled;
 extern NSString * const kSettingsRSSIDisplayWifi;

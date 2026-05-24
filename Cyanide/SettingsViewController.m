@@ -13,7 +13,11 @@
 #import "tweaks/typebanner.h"
 #import "tweaks/darksword_tweaks.h"
 #import "tweaks/darksword_ota.h"
+#import "tweaks/darksword_layout.h"
 #import "tweaks/nano_registry.h"
+#import "tweaks/killallapps.h"
+
+#import <objc/runtime.h>
 #import "DSKeepAlive.h"
 #import "TaskRop/RemoteCall.h"
 #import "kexploit/kutils.h"
@@ -134,9 +138,19 @@ NSString * const kSettingsDSZeroWakeAnimation = @"DSZeroWakeAnimation";
 NSString * const kSettingsDSZeroBacklightFade = @"DSZeroBacklightFade";
 NSString * const kSettingsDSDoubleTapToLock   = @"DSDoubleTapToLock";
 
+NSString * const kSettingsLayoutExtrasEnabled  = @"LayoutExtrasEnabled";
+NSString * const kSettingsLayoutHomeExtraLeft   = @"LayoutHomeExtraLeft";
+NSString * const kSettingsLayoutHomeExtraRight  = @"LayoutHomeExtraRight";
+NSString * const kSettingsLayoutHomeExtraTop    = @"LayoutHomeExtraTop";
+NSString * const kSettingsLayoutHomeExtraBottom = @"LayoutHomeExtraBottom";
+NSString * const kSettingsLayoutDockExtraHorizontal = @"LayoutDockExtraHorizontal";
+NSString * const kSettingsLayoutHomeScalePct    = @"LayoutHomeScalePct";
+NSString * const kSettingsLayoutDockScalePct    = @"LayoutDockScalePct";
+
 NSString * const kSettingsStatBarEnabled = @"StatBarEnabled";
 NSString * const kSettingsStatBarCelsius = @"StatBarCelsius";
-NSString * const kSettingsStatBarHideNet = @"StatBarHideNet";
+NSString * const kSettingsStatBarShowNet = @"StatBarShowNet";
+NSString * const kSettingsStatBarShowCPU = @"StatBarShowCPU";
 
 NSString * const kSettingsRSSIDisplayEnabled = @"RSSIDisplayEnabled";
 NSString * const kSettingsRSSIDisplayWifi    = @"RSSIDisplayWifi";
@@ -305,6 +319,7 @@ static NSArray<NSString *> *settings_rc_backed_tweak_keys(void)
             kSettingsDSZeroWakeAnimation,
             kSettingsDSZeroBacklightFade,
             kSettingsDSDoubleTapToLock,
+            kSettingsLayoutExtrasEnabled,
         ];
     });
     return keys;
@@ -516,6 +531,7 @@ static void settings_handle_springboard_restart(void)
             rssidisplay_forget_remote_state();
             axonlite_forget_remote_state();
             typebanner_forget_remote_state();
+            killallapps_forget_remote_state();
             if (hadSession) {
                 abandon_remote_call();
             }
@@ -1263,6 +1279,21 @@ static bool settings_apply_dark_tweaks_from_defaults_locked(NSUserDefaults *d)
                                              [d boolForKey:kSettingsDSDoubleTapToLock]);
 }
 
+static bool settings_apply_layout_extras_from_defaults_locked(NSUserDefaults *d)
+{
+    if (![d boolForKey:kSettingsLayoutExtrasEnabled]) return false;
+    double exL  = (double)[d integerForKey:kSettingsLayoutHomeExtraLeft];
+    double exR  = (double)[d integerForKey:kSettingsLayoutHomeExtraRight];
+    double exT  = (double)[d integerForKey:kSettingsLayoutHomeExtraTop];
+    double exB  = (double)[d integerForKey:kSettingsLayoutHomeExtraBottom];
+    double dockExH = (double)[d integerForKey:kSettingsLayoutDockExtraHorizontal];
+    NSInteger hsPct = [d integerForKey:kSettingsLayoutHomeScalePct];
+    NSInteger dkPct = [d integerForKey:kSettingsLayoutDockScalePct];
+    double homeScale = (hsPct > 0) ? (double)hsPct / 100.0 : 1.0;
+    double dockScale = (dkPct > 0) ? (double)dkPct / 100.0 : 1.0;
+    return darksword_layout_apply_in_session(exL, exR, exT, exB, dockExH, homeScale, dockScale);
+}
+
 static void settings_reset_sbc_defaults(void)
 {
     if (!settings_device_supported()) {
@@ -1582,7 +1613,8 @@ static void settings_start_statbar_live_loop(void)
                         break;
                     }
                     ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                  [d boolForKey:kSettingsStatBarHideNet]);
+                                                  [d boolForKey:kSettingsStatBarShowNet],
+                                                  [d boolForKey:kSettingsStatBarShowCPU]);
                 }
 
                 if (tick == 0) {
@@ -1679,7 +1711,8 @@ static void settings_apply_statbar_once_async(const char *reason)
                 ![d boolForKey:kSettingsStatBarEnabled] ||
                 !g_springboard_rc_ready) return;
             ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                          [d boolForKey:kSettingsStatBarHideNet]);
+                                          [d boolForKey:kSettingsStatBarShowNet],
+                                          [d boolForKey:kSettingsStatBarShowCPU]);
         }
         // Only log lifecycle applies that change result; a clean success on
         // every foreground/background flip is noise.
@@ -2229,7 +2262,8 @@ static BOOL settings_key_is_statbar(NSString *key)
 {
     return [key isEqualToString:kSettingsStatBarEnabled] ||
            [key isEqualToString:kSettingsStatBarCelsius] ||
-           [key isEqualToString:kSettingsStatBarHideNet];
+           [key isEqualToString:kSettingsStatBarShowNet] ||
+           [key isEqualToString:kSettingsStatBarShowCPU];
 }
 
 static BOOL settings_key_is_rssi(NSString *key)
@@ -2363,7 +2397,8 @@ static void settings_schedule_live_apply_for_key(NSString *key)
                 @synchronized (settings_rc_lock()) {
                     if (settings_cleanup_in_progress() || !g_springboard_rc_ready) return;
                     bool ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                       [d boolForKey:kSettingsStatBarHideNet]);
+                                                       [d boolForKey:kSettingsStatBarShowNet],
+                                                       [d boolForKey:kSettingsStatBarShowCPU]);
                     settings_mark_tweak_applied(kSettingsStatBarEnabled,
                                                 ok && [d boolForKey:kSettingsStatBarEnabled]);
                     printf("[SETTINGS] live StatBar apply result=%d\n", ok);
@@ -2497,9 +2532,19 @@ void settings_register_defaults(void)
         kSettingsDSZeroBacklightFade: @NO,
         kSettingsDSDoubleTapToLock:   @NO,
 
+        kSettingsLayoutExtrasEnabled:       @NO,
+        kSettingsLayoutHomeExtraLeft:       @0,
+        kSettingsLayoutHomeExtraRight:      @0,
+        kSettingsLayoutHomeExtraTop:        @0,
+        kSettingsLayoutHomeExtraBottom:     @0,
+        kSettingsLayoutDockExtraHorizontal: @0,
+        kSettingsLayoutHomeScalePct:        @100,
+        kSettingsLayoutDockScalePct:        @100,
+
         kSettingsStatBarEnabled: @NO,
         kSettingsStatBarCelsius: @NO,
-        kSettingsStatBarHideNet: @NO,
+        kSettingsStatBarShowNet: @NO,
+        kSettingsStatBarShowCPU: @YES,
 
         kSettingsRSSIDisplayEnabled: @NO,
         kSettingsRSSIDisplayWifi:    @YES,
@@ -2551,10 +2596,11 @@ void settings_run_actions(void)
             BOOL runRSSI = settings_rssi_install_allowed() && [d boolForKey:kSettingsRSSIDisplayEnabled];
             BOOL runAxonLite = [d boolForKey:kSettingsAxonLiteEnabled];
             BOOL runTypeBanner = [d boolForKey:kSettingsTypeBannerEnabled];
+            BOOL runLayoutExtras = [d boolForKey:kSettingsLayoutExtrasEnabled];
             // TypeBanner does its own session management (alternates MobileSMS
             // and SpringBoard), so it doesn't gate the shared SpringBoard
             // session that other tweaks need during Apply Tweaks.
-            BOOL needsSpringBoard = runSandboxEscape || runSBC || runDarkTweaks || runStatBar || runRSSI || runAxonLite;
+            BOOL needsSpringBoard = runSandboxEscape || runSBC || runDarkTweaks || runStatBar || runRSSI || runAxonLite || runLayoutExtras;
 
             NSUInteger total = 1;
             if (patchSandboxExt) total++;
@@ -2563,6 +2609,7 @@ void settings_run_actions(void)
             if (runSandboxEscape) total++;
             if (runSBC) total++;
             if (runDarkTweaks) total++;
+            if (runLayoutExtras) total++;
             if (runStatBar) total++;
             if (runRSSI) total++;
             if (runAxonLite) total++;
@@ -2587,10 +2634,21 @@ void settings_run_actions(void)
                          (long)[d integerForKey:kSettingsSBCRows],
                          [d boolForKey:kSettingsSBCHideLabels] ? "hidden" : "shown");
             }
+            if (runLayoutExtras) {
+                log_user("[PLAN] Layout extras: home=+L%ld/R%ld/T%ld/B%ld dock=+H%ld scale=home%ld%%/dock%ld%%\n",
+                         (long)[d integerForKey:kSettingsLayoutHomeExtraLeft],
+                         (long)[d integerForKey:kSettingsLayoutHomeExtraRight],
+                         (long)[d integerForKey:kSettingsLayoutHomeExtraTop],
+                         (long)[d integerForKey:kSettingsLayoutHomeExtraBottom],
+                         (long)[d integerForKey:kSettingsLayoutDockExtraHorizontal],
+                         (long)[d integerForKey:kSettingsLayoutHomeScalePct],
+                         (long)[d integerForKey:kSettingsLayoutDockScalePct]);
+            }
             if (runStatBar) {
-                log_user("[PLAN] StatBar target: temp=%s network=%s refresh=1s\n",
+                log_user("[PLAN] StatBar target: temp=%s cpu=%s network=%s refresh=1s\n",
                          [d boolForKey:kSettingsStatBarCelsius] ? "C" : "F",
-                         [d boolForKey:kSettingsStatBarHideNet] ? "hidden" : "shown");
+                         [d boolForKey:kSettingsStatBarShowCPU] ? "shown" : "hidden",
+                         [d boolForKey:kSettingsStatBarShowNet] ? "shown" : "hidden");
             }
             if (runRSSI) {
                 log_user("[PLAN] RSSI display target: wifi=%s cell=%s refresh=1s\n",
@@ -2621,7 +2679,7 @@ void settings_run_actions(void)
                 log_user("[OK] Sandbox-extension patch stage finished.\n");
                 cyanide_upload_log_milestone(@"sandbox-ext-patched");
             }
-            printf("[SETTINGS] actions escape=%d patch=%d sbc=%d dock=%ld hs=%ldx%ld hideLabels=%d dark=%d power=%d level=%s statbar=%d celsius=%d hideNet=%d rssi=%d rssiWifi=%d rssiCell=%d axon=%d rcReady=%d\n",
+            printf("[SETTINGS] actions escape=%d patch=%d sbc=%d dock=%ld hs=%ldx%ld hideLabels=%d dark=%d power=%d level=%s statbar=%d celsius=%d showNet=%d showCPU=%d rssi=%d rssiWifi=%d rssiCell=%d axon=%d rcReady=%d\n",
                    runSandboxEscape,
                    patchSandboxExt,
                    runSBC,
@@ -2634,7 +2692,8 @@ void settings_run_actions(void)
                    ([d stringForKey:kSettingsPowercuffLevel] ?: @"").UTF8String,
                    runStatBar,
                    [d boolForKey:kSettingsStatBarCelsius],
-                   [d boolForKey:kSettingsStatBarHideNet],
+                   [d boolForKey:kSettingsStatBarShowNet],
+                   [d boolForKey:kSettingsStatBarShowCPU],
                    runRSSI,
                    [d boolForKey:kSettingsRSSIDisplayWifi],
                    [d boolForKey:kSettingsRSSIDisplayCell],
@@ -2727,10 +2786,22 @@ void settings_run_actions(void)
                         cyanide_upload_log_milestone(ok ? @"darksword-tweaks-applied" : @"darksword-tweaks-warning");
                     }
 
+                    if ([d boolForKey:kSettingsLayoutExtrasEnabled]) {
+                        settings_progress(&step, total, "Applying Home Layout Extras");
+                        bool ok = settings_apply_layout_extras_from_defaults_locked(d);
+                        settings_mark_tweak_applied(kSettingsLayoutExtrasEnabled, ok);
+                        printf("[SETTINGS] Layout extras result=%d\n", ok);
+                        log_user("%s Home Layout Extras %s.\n",
+                                 ok ? "[OK]" : "[WARN]",
+                                 ok ? "applied" : "did not apply cleanly");
+                        cyanide_upload_log_milestone(ok ? @"layout-extras-applied" : @"layout-extras-warning");
+                    }
+
                     if (runStatBar) {
                         settings_progress(&step, total, "Starting StatBar overlay and 1s feed");
                         bool ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                           [d boolForKey:kSettingsStatBarHideNet]);
+                                                           [d boolForKey:kSettingsStatBarShowNet],
+                                                           [d boolForKey:kSettingsStatBarShowCPU]);
                         settings_mark_tweak_applied(kSettingsStatBarEnabled,
                                                     ok && [d boolForKey:kSettingsStatBarEnabled]);
                         printf("[SETTINGS] StatBar result=%d\n", ok);
@@ -2841,6 +2912,7 @@ typedef NS_ENUM(NSInteger, SettingsSection) {
     SectionTypeBanner,
     SectionPowercuff,
     SectionDarkSwordTweaks,
+    SectionLayoutExtras,
     SectionNanoRegistry,
     SectionCount,
 };
@@ -2970,6 +3042,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     }
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"toggle"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"stepper"];
+    [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"slider"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"segmented"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"action"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"button"];
@@ -3250,11 +3323,32 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     return @[];
 }
 
+- (NSArray<NSDictionary *> *)layoutExtrasRows
+{
+    return @[
+        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraLeft,
+           @"title": @"Home extra left",   @"min": @0,  @"max": @300, @"step": @1, @"unit": @"pt", @"default": @0 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraRight,
+           @"title": @"Home extra right",  @"min": @0,  @"max": @300, @"step": @1, @"unit": @"pt", @"default": @0 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraTop,
+           @"title": @"Home extra top",    @"min": @0,  @"max": @400, @"step": @1, @"unit": @"pt", @"default": @0 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraBottom,
+           @"title": @"Home extra bottom", @"min": @0,  @"max": @400, @"step": @1, @"unit": @"pt", @"default": @0 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutDockExtraHorizontal,
+           @"title": @"Dock extra horizontal", @"min": @0,  @"max": @200, @"step": @1, @"unit": @"pt", @"default": @0 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeScalePct,
+           @"title": @"Home icon scale",   @"min": @25, @"max": @250, @"step": @1, @"unit": @"%", @"default": @100 },
+        @{ @"kind": @"slider", @"key": kSettingsLayoutDockScalePct,
+           @"title": @"Dock icon scale",   @"min": @25, @"max": @250, @"step": @1, @"unit": @"%", @"default": @100 },
+    ];
+}
+
 - (NSArray<NSDictionary *> *)statbarRows
 {
     return @[
         @{ @"kind": @"toggle", @"key": kSettingsStatBarCelsius, @"title": @"Celsius" },
-        @{ @"kind": @"toggle", @"key": kSettingsStatBarHideNet, @"title": @"Hide network speed" },
+        @{ @"kind": @"toggle", @"key": kSettingsStatBarShowCPU, @"title": @"Show CPU %" },
+        @{ @"kind": @"toggle", @"key": kSettingsStatBarShowNet, @"title": @"Show network speed" },
     ];
 }
 
@@ -3290,9 +3384,20 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         [out addObject:@{@"title": @"Home columns",     @"value": [@([d integerForKey:kSettingsSBCCols])        stringValue]}];
         [out addObject:@{@"title": @"Home rows",        @"value": [@([d integerForKey:kSettingsSBCRows])        stringValue]}];
         [out addObject:@{@"title": @"Hide icon labels", @"value": [d boolForKey:kSettingsSBCHideLabels] ? @"On" : @"Off"}];
+    } else if (section == SectionLayoutExtras) {
+        [out addObject:@{@"title": @"Home extra L/R",   @"value": [NSString stringWithFormat:@"%ld/%ld",
+                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraLeft],
+                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraRight]]}];
+        [out addObject:@{@"title": @"Home extra T/B",   @"value": [NSString stringWithFormat:@"%ld/%ld",
+                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraTop],
+                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraBottom]]}];
+        [out addObject:@{@"title": @"Dock extra H",     @"value": [@([d integerForKey:kSettingsLayoutDockExtraHorizontal]) stringValue]}];
+        [out addObject:@{@"title": @"Home scale %",     @"value": [@([d integerForKey:kSettingsLayoutHomeScalePct]) stringValue]}];
+        [out addObject:@{@"title": @"Dock scale %",     @"value": [@([d integerForKey:kSettingsLayoutDockScalePct]) stringValue]}];
     } else if (section == SectionStatBar) {
         [out addObject:@{@"title": @"Celsius",          @"value": [d boolForKey:kSettingsStatBarCelsius] ? @"On" : @"Off"}];
-        [out addObject:@{@"title": @"Hide net speed",   @"value": [d boolForKey:kSettingsStatBarHideNet]  ? @"On" : @"Off"}];
+        [out addObject:@{@"title": @"Show CPU %",       @"value": [d boolForKey:kSettingsStatBarShowCPU]  ? @"On" : @"Off"}];
+        [out addObject:@{@"title": @"Show net speed",   @"value": [d boolForKey:kSettingsStatBarShowNet]  ? @"On" : @"Off"}];
     } else if (section == SectionRSSI) {
         [out addObject:@{@"title": @"WiFi (bar count)", @"value": [d boolForKey:kSettingsRSSIDisplayWifi] ? @"On" : @"Off"}];
         [out addObject:@{@"title": @"Cellular (dBm)",   @"value": [d boolForKey:kSettingsRSSIDisplayCell] ? @"On" : @"Off"}];
@@ -3314,6 +3419,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         case SectionLaunch:    return self.launchRows;
         case SectionSBC:       return self.sbcRows;
         case SectionDarkSwordTweaks: return self.darkSwordTweakRows;
+        case SectionLayoutExtras: return self.layoutExtrasRows;
         case SectionOTA:       return self.otaRows;
         case SectionNanoRegistry: return self.nanoRegistryRows;
         case SectionPowercuff: return self.powercuffRows;
@@ -3342,6 +3448,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         // @{ @"title": @"TypeBanner",         @"icon": @"ellipsis.bubble.fill",                @"color": [UIColor systemTealColor],   @"section": @(SectionTypeBanner) },
         @{ @"title": @"Powercuff",          @"icon": @"bolt.slash.fill",                     @"color": [UIColor systemOrangeColor], @"section": @(SectionPowercuff) },
         @{ @"title": @"SpringBoard Tweaks", @"icon": @"apps.iphone",                         @"color": [UIColor systemIndigoColor], @"section": @(SectionDarkSwordTweaks) },
+        @{ @"title": @"Home Layout Extras", @"icon": @"square.dashed.inset.filled",          @"color": [UIColor systemPurpleColor], @"section": @(SectionLayoutExtras) },
     ];
 }
 
@@ -3401,7 +3508,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
             NSInteger n = (NSInteger)settings_changelog_entries().count;
             return n > 0 ? n + 1 : 0;
         }
-        case RootSectionActions:        return 4;
+        case RootSectionActions:        return 5;
         case RootSectionTweakBundles:   return (NSInteger)self.tweakBundleRows.count;
         case RootSectionSystemBundles:  return (NSInteger)self.systemBundleRows.count;
         case RootSectionAbout:          return 4;
@@ -3437,6 +3544,16 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     }
     if (s == SectionDarkSwordTweaks) {
         return @"Imported from DarkSword-Tweaks. These are SpringBoard runtime patches; turning one off only skips future applies.";
+    }
+    if (s == SectionLayoutExtras) {
+        NSInteger major = [[NSProcessInfo processInfo] operatingSystemVersion].majorVersion;
+        if (major >= 26) {
+            return [NSString stringWithFormat:
+                @"Adds extra padding and per-icon scaling on top of the stock home/dock layout.\n\n"
+                @"Running on iOS %ld: the upstream config-mutation path doesn't exist (AMUIInfographIconListLayout has no mutable configuration), so the iOS 26 path instead walks the live SBIconListView/SBIconView hierarchy and adjusts frames + iconImageInfo directly. One-shot at Run; iOS 26 may re-fit on a subsequent layout pass (rotation, page swipe).",
+                (long)major];
+        }
+        return @"Adds extra padding and per-icon scaling on top of the stock home/dock layout. Defaults are zero padding and 100% scale (no change). Toggle Enable on and hit Run to apply; values aren't persisted across respring.";
     }
     if (s == SectionOTA) {
         return @"Edits launchd disabled.plist. A reboot or userspace restart is required for changes to take effect.";
@@ -3961,6 +4078,7 @@ void cyanide_present_contact(UIViewController *host)
         if (indexPath.row == 0) rowEnabled = cleanupEnabled;
         if (indexPath.row == 2) rowEnabled = anyInstalledOrQueued;
         if (indexPath.row == 3) rowEnabled = YES;     // network check is always allowed
+        if (indexPath.row == 4) rowEnabled = NO;       // disabled while in development
 
         UILabel *primary = [[UILabel alloc] init];
         primary.translatesAutoresizingMaskIntoConstraints = NO;
@@ -3975,9 +4093,12 @@ void cyanide_present_contact(UIViewController *host)
         } else if (indexPath.row == 2) {
             primary.text = @"Reset All Packages";
             primary.textColor = anyInstalledOrQueued ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
-        } else {
+        } else if (indexPath.row == 3) {
             primary.text = @"Check for Updates";
             primary.textColor = self.view.tintColor;
+        } else {
+            primary.text = @"Kill Background Apps (in development)";
+            primary.textColor = UIColor.tertiaryLabelColor;
         }
         [cell.contentView addSubview:primary];
 
@@ -4035,6 +4156,9 @@ void cyanide_present_contact(UIViewController *host)
         } else if (indexPath.row == 3) {
             detailText  = @"Pings GitHub for the latest release. Run this if the launch prompt didn't appear.";
             detailColor = UIColor.secondaryLabelColor;
+        } else if (indexPath.row == 4) {
+            detailText  = @"In development — still over-kills background services. Disabled until the filter is right.";
+            detailColor = UIColor.tertiaryLabelColor;
         }
         if (detailText) {
             UILabel *detail = [[UILabel alloc] init];
@@ -4120,6 +4244,69 @@ void cyanide_present_contact(UIViewController *host)
         stp.tag = (indexPath.section << 16) | indexPath.row;
         [stp addTarget:self action:@selector(stepperChanged:) forControlEvents:UIControlEventValueChanged];
         cell.accessoryView = stp;
+        return cell;
+    }
+
+    if ([kind isEqualToString:@"slider"]) {
+        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"slider" forIndexPath:dequeuePath];
+        cell.selectionStyle = UITableViewCellSelectionStyleNone;
+        cell.textLabel.text = nil;
+        cell.detailTextLabel.text = nil;
+        cell.accessoryView = nil;
+        for (UIView *v in [cell.contentView.subviews copy]) [v removeFromSuperview];
+
+        NSInteger minV = [row[@"min"] integerValue];
+        NSInteger maxV = [row[@"max"] integerValue];
+        NSInteger step = [row[@"step"] integerValue]; if (step <= 0) step = 1;
+        NSInteger value = [d integerForKey:row[@"key"]];
+        if (value < minV) value = minV;
+        if (value > maxV) value = maxV;
+        NSString *unit = row[@"unit"] ?: @"";
+
+        UILabel *title = [[UILabel alloc] init];
+        title.translatesAutoresizingMaskIntoConstraints = NO;
+        title.text = row[@"title"];
+        title.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
+        title.textColor = supported ? UIColor.labelColor : UIColor.tertiaryLabelColor;
+
+        UILabel *valueLabel = [[UILabel alloc] init];
+        valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
+        valueLabel.text = [NSString stringWithFormat:@"%ld%@", (long)value, unit];
+        valueLabel.font = [UIFont monospacedDigitSystemFontOfSize:15 weight:UIFontWeightRegular];
+        valueLabel.textColor = supported ? UIColor.secondaryLabelColor : UIColor.tertiaryLabelColor;
+        valueLabel.textAlignment = NSTextAlignmentRight;
+
+        UISlider *slider = [[UISlider alloc] init];
+        slider.translatesAutoresizingMaskIntoConstraints = NO;
+        slider.minimumValue = (float)minV;
+        slider.maximumValue = (float)maxV;
+        slider.value = (float)value;
+        slider.continuous = YES;
+        slider.enabled = supported;
+        slider.tag = (indexPath.section << 16) | indexPath.row;
+        [slider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
+        [slider addTarget:self action:@selector(sliderEnded:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
+        // Stash the value label so sliderChanged: can update it without a full reload.
+        objc_setAssociatedObject(slider, "cyanideValueLabel", valueLabel, OBJC_ASSOCIATION_ASSIGN);
+        objc_setAssociatedObject(slider, "cyanideUnit", unit, OBJC_ASSOCIATION_RETAIN);
+        objc_setAssociatedObject(slider, "cyanideStep", @(step), OBJC_ASSOCIATION_RETAIN);
+
+        [cell.contentView addSubview:title];
+        [cell.contentView addSubview:valueLabel];
+        [cell.contentView addSubview:slider];
+
+        UILayoutGuide *m = cell.contentView.layoutMarginsGuide;
+        [NSLayoutConstraint activateConstraints:@[
+            [title.leadingAnchor      constraintEqualToAnchor:m.leadingAnchor],
+            [title.topAnchor          constraintEqualToAnchor:m.topAnchor],
+            [valueLabel.trailingAnchor constraintEqualToAnchor:m.trailingAnchor],
+            [valueLabel.centerYAnchor  constraintEqualToAnchor:title.centerYAnchor],
+            [valueLabel.leadingAnchor  constraintGreaterThanOrEqualToAnchor:title.trailingAnchor constant:8],
+            [slider.leadingAnchor   constraintEqualToAnchor:m.leadingAnchor],
+            [slider.trailingAnchor  constraintEqualToAnchor:m.trailingAnchor],
+            [slider.topAnchor       constraintEqualToAnchor:title.bottomAnchor constant:4],
+            [slider.bottomAnchor    constraintEqualToAnchor:m.bottomAnchor],
+        ]];
         return cell;
     }
 
@@ -4218,6 +4405,35 @@ void cyanide_present_contact(UIViewController *host)
         if (!sender.isOn) settings_mark_tweak_applied(key, NO);
         settings_notify_package_queue_changed_async();
     }
+    settings_schedule_live_apply_for_key(key);
+    [self presentApplyLogIfRunning];
+}
+
+- (void)sliderChanged:(UISlider *)sender
+{
+    if (!settings_device_supported()) return;
+    NSNumber *stepNum = objc_getAssociatedObject(sender, "cyanideStep");
+    NSInteger step = stepNum ? [stepNum integerValue] : 1;
+    if (step <= 0) step = 1;
+    NSInteger value = (NSInteger)llround((double)sender.value / (double)step) * step;
+    UILabel *valueLabel = objc_getAssociatedObject(sender, "cyanideValueLabel");
+    NSString *unit = objc_getAssociatedObject(sender, "cyanideUnit") ?: @"";
+    if (valueLabel) {
+        valueLabel.text = [NSString stringWithFormat:@"%ld%@", (long)value, unit];
+    }
+}
+
+- (void)sliderEnded:(UISlider *)sender
+{
+    if (!settings_device_supported()) return;
+    NSDictionary *row = [self rowForTag:sender.tag];
+    if (!row) return;
+    NSString *key = row[@"key"];
+    NSInteger step = [row[@"step"] integerValue]; if (step <= 0) step = 1;
+    NSInteger value = (NSInteger)llround((double)sender.value / (double)step) * step;
+    sender.value = (float)value;  // snap thumb to the step grid
+    [[NSUserDefaults standardUserDefaults] setInteger:value forKey:key];
+    printf("[SETTINGS] slider %s=%ld\n", key.UTF8String, (long)value);
     settings_schedule_live_apply_for_key(key);
     [self presentApplyLogIfRunning];
 }
@@ -4402,6 +4618,38 @@ void cyanide_present_contact(UIViewController *host)
             settings_present_controller(ac, self);
         } else if (indexPath.row == 3) {
             [[UpdateChecker shared] checkForUpdatesManuallyFrom:self];
+        } else if (indexPath.row == 4) {
+            if (!g_springboard_rc_ready) {
+                log_user("[KILLALL] Needs an active SpringBoard session. Hit Run first.\n");
+                return;
+            }
+            UIAlertController *ac = [UIAlertController
+                alertControllerWithTitle:@"Kill Background Apps?"
+                                 message:@"This asks SpringBoard to terminate every running app except Cyanide, like swiping them all out of the App Switcher.\n\nApps with unsaved work may lose it. SpringBoard and the lock-screen process are skipped."
+                          preferredStyle:UIAlertControllerStyleAlert];
+            [ac addAction:[UIAlertAction actionWithTitle:@"Cancel"
+                                                   style:UIAlertActionStyleCancel
+                                                 handler:nil]];
+            [ac addAction:[UIAlertAction actionWithTitle:@"Kill Apps"
+                                                   style:UIAlertActionStyleDestructive
+                                                 handler:^(UIAlertAction *_) {
+                dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                    @synchronized (settings_rc_lock()) {
+                        if (settings_cleanup_in_progress() || !g_springboard_rc_ready) {
+                            log_user("[KILLALL] Aborted: session not ready.\n");
+                            return;
+                        }
+                        int killed = 0;
+                        bool ok = killallapps_apply_in_session(&killed);
+                        if (ok) {
+                            log_user("[KILLALL] Killed %d background app(s).\n", killed);
+                        } else {
+                            log_user("[KILLALL] Failed: SpringBoard enumeration error (see log).\n");
+                        }
+                    }
+                });
+            }]];
+            settings_present_controller(ac, self);
         }
     }
 

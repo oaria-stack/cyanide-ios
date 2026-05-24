@@ -99,10 +99,10 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
 - (NSArray<NSDictionary *> *)tipsEntries
 {
     return @[
-        @{ @"icon":  @"bolt.fill",
-           @"color": UIColor.systemYellowColor,
-           @"title": @"Axon Lite — still beta",
-           @"body":  @"Recent passes improved filter switching speed and fixed the duplicate-icon bug, but it's a beta and still has rough edges. Hit Contact below if you run into one." },
+        @{ @"icon":  @"wand.and.stars",
+           @"color": UIColor.systemPurpleColor,
+           @"title": @"What's new",
+           @"body":  @"• Home Layout Extras — extra padding and per-icon scaling for the home grid and dock\n• StatBar now has a CPU% slot and slimmer KB/MB-only network speed\n• Manual Check for Updates button in Settings → Quick Actions\n• Smoother respring overlay" },
         @{ @"icon":  @"exclamationmark.triangle.fill",
            @"color": UIColor.systemOrangeColor,
            @"title": @"Don't force-quit Cyanide",

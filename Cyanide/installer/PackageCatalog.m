@@ -15,7 +15,8 @@ static const NSInteger kSecSBC          = 4;
 static const NSInteger kSecStatBar      = 5;
 static const NSInteger kSecRSSI         = 6;
 static const NSInteger kSecPowercuff    = 9;
-static const NSInteger kSecNanoRegistry = 11;
+static const NSInteger kSecLayoutExtras = 11;
+static const NSInteger kSecNanoRegistry = 12;
 
 + (NSArray<Package *> *)allPackages
 {
@@ -104,6 +105,19 @@ static const NSInteger kSecNanoRegistry = 11;
         //                                   isNew:YES];
         // typeBanner.unstableWarning = @"Detection is MobileSMS-only — typing events fire only while Messages.app is running. Polling Messages over RemoteCall every ~1.5s; battery cost is non-trivial.";
 
+        Package *layoutExtras = [[Package alloc] initWithIdentifier:@"com.darksword.layoutextras"
+                                           name:@"Home Layout Extras"
+                               shortDescription:@"Extra home/dock padding and per-icon scaling"
+                                longDescription:@"Adds extra padding around the home grid and the dock, and scales icons up or down. Stacks on top of SBCustomizer.\n\nDial in left/right/top/bottom padding for the home screen, horizontal padding for the dock, and home/dock icon scale in the Settings tab. Defaults match stock (zero padding, 100% scale).\n\nApplied at Run; not persisted across respring.\n\niOS 18: mutates the SBIconController layout configuration directly (upstream kolbicz path).\niOS 26: walks the live SBIconListView/SBIconView hierarchy and adjusts frames + iconImageInfo per icon (the iOS 26 layout class is read-only). One-shot at Run on iOS 26 — rotation/page swipe may force iOS 26's auto-layout to re-fit, so re-Run if that happens."
+                                        version:version
+                                         author:@"kolbicz"
+                                       category:@"Home Screen Layout"
+                                     symbolName:@"square.dashed.inset.filled"
+                                           kind:PackageInstallKindToggle
+                                     enabledKey:kSettingsLayoutExtrasEnabled
+                                          isNew:YES];
+        layoutExtras.settingsSection = kSecLayoutExtras;
+
         Package *nanoRegistry = [[Package alloc] initWithIdentifier:@"com.darksword.nanoregistry"
                                            name:@"Watch Pairing Override"
                                shortDescription:@"Pair a newer watch or revive an older one"
@@ -120,6 +134,7 @@ static const NSInteger kSecNanoRegistry = 11;
         list = @[
             statBar,
             sbc,
+            layoutExtras,
             powercuff,
 
             [[Package alloc] initWithIdentifier:@"com.darksword.disable-app-library"
