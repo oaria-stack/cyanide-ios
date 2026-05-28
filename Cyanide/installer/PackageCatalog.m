@@ -129,6 +129,7 @@ static const NSInteger kSecThemer       = 13;
                                shortDescription:@"Two floating app windows, iPad-style"
                                 longDescription:
             @"Run two apps as floating, resizable windows on top of SpringBoard.\n\n"
+            @"Based on Dynamic Stage by tomt000 — the original Stage Manager-for-iPhone tweak. Dynamic Stage Lite is an independent, RemoteCall-only re-implementation of the split-view + scene-hosting design; no original tweak code or assets are reused. Go check out tomt000's full version on Havoc.\n\n"
             @"How to use:\n"
             @"• Tap the dot in the bottom-right corner of the screen to open the picker.\n"
             @"• Tap two apps to launch them side-by-side.\n"

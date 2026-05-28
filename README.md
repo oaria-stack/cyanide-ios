@@ -123,6 +123,7 @@ iOS/iPadOS 18.7.2 and 26.1. Later builds are outside this kernel exploit window.
 - [`neonmodder123`](https://github.com/neonmodder123): Web Respring method.
 - [`kolbicz`](https://github.com/kolbicz): OTA Disabler and SpringBoard tweaks.
 - [`rpetrich`](https://github.com/rpetrich): Powercuff.
+- [`tomt000`](https://github.com/tomt000): [Dynamic Stage](https://havoc.app/package/dynamicstage) — the original Stage Manager-for-iPhone tweak whose split-view + scene-hosting design Dynamic Stage Lite re-implements over RemoteCall.
 
 ### UI inspiration
 
