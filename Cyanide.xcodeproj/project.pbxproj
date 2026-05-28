@@ -28,6 +28,7 @@
 		FB222C212FC3707B001D5118 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
 		FB4112152FB93FB800461945 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
 		FB4117392FB9597C00461945 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
+		FB45558C2FC7DA4F004466F5 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
 		FB5948FE2FC0DFEA006FB8AE /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
 		FBA008522FB522840080FFE2 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
 		FBA376182FB7FE5600886898 /* ChOma.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = ChOma.xcodeproj; sourceTree = "<group>"; };
@@ -216,6 +217,13 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		FB4555C12FC7DA4F004466F5 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		FB5949302FC0DFEA006FB8AE /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -341,8 +349,8 @@
 			projectDirPath = "";
 			projectReferences = (
 				{
-					ProductGroup = AA73F7C72F7BC6CB00134C31 /* Products */;
-					ProjectRef = AA73F7982F7BC6CB00134C31 /* ChOma.xcodeproj */;
+					ProductGroup = FBA376492FB7FE5600886898 /* Products */;
+					ProjectRef = FBA376182FB7FE5600886898 /* ChOma.xcodeproj */;
 				},
 				{
 					ProductGroup = FBEF03792FAC52D5005E14B9 /* Products */;
@@ -371,6 +379,10 @@
 				{
 					ProductGroup = FB222ADB2FC36B8A001D5118 /* Products */;
 					ProjectRef = FB222AA92FC36B8A001D5118 /* ChOma.xcodeproj */;
+				},
+				{
+					ProductGroup = FB4555C12FC7DA4F004466F5 /* Products */;
+					ProjectRef = FB45558C2FC7DA4F004466F5 /* ChOma.xcodeproj */;
 				},
 				{
 					ProductGroup = FBA008852FB522840080FFE2 /* Products */;
@@ -409,8 +421,8 @@
 					ProjectRef = FB5948FE2FC0DFEA006FB8AE /* ChOma.xcodeproj */;
 				},
 				{
-					ProductGroup = FBA376492FB7FE5600886898 /* Products */;
-					ProjectRef = FBA376182FB7FE5600886898 /* ChOma.xcodeproj */;
+					ProductGroup = AA73F7C72F7BC6CB00134C31 /* Products */;
+					ProjectRef = AA73F7982F7BC6CB00134C31 /* ChOma.xcodeproj */;
 				},
 			);
 			projectRoot = "";
@@ -468,7 +480,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001013;
+				CURRENT_PROJECT_VERSION = 1001014;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = F34HD53UWS;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -496,7 +508,7 @@
 					"$(PROJECT_DIR)/Cyanide/XPF/external/ChOma/external/ios",
 					"$(PROJECT_DIR)/Cyanide/resident/output",
 				);
-				MARKETING_VERSION = 1.1.13;
+				MARKETING_VERSION = 1.1.14;
 				OTHER_CFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zeroxjf.ios-cyanide1";
 				PRODUCT_NAME = Cyanide;
@@ -518,7 +530,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1001013;
+				CURRENT_PROJECT_VERSION = 1001014;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = F34HD53UWS;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
@@ -546,7 +558,7 @@
 					"$(PROJECT_DIR)/Cyanide/XPF/external/ChOma/external/ios",
 					"$(PROJECT_DIR)/Cyanide/resident/output",
 				);
-				MARKETING_VERSION = 1.1.13;
+				MARKETING_VERSION = 1.1.14;
 				OTHER_CFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "com.zeroxjf.ios-cyanide1";
 				PRODUCT_NAME = Cyanide;

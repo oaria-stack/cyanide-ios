@@ -305,6 +305,7 @@ static UIColor *colorForLogLine(NSString *line) {
     if ([line hasPrefix:@"[INIT]"])        return [UIColor colorWithRed:0.60 green:0.40 blue:0.92 alpha:1.0]; // medium purple
     if ([line hasPrefix:@"[AXONLITE]"])    return [UIColor colorWithRed:0.72 green:0.98 blue:0.28 alpha:1.0]; // chartreuse
     if ([line hasPrefix:@"[THEMER]"])      return [UIColor colorWithRed:0.92 green:0.35 blue:0.85 alpha:1.0]; // fuchsia
+    if ([line hasPrefix:@"[STAGE]"])       return [UIColor colorWithRed:0.78 green:0.48 blue:0.98 alpha:1.0]; // electric violet (Dynamic Stage Lite)
     if ([line hasPrefix:@"[TYPEBANNER]"])  return [UIColor colorWithRed:1.00 green:0.68 blue:0.48 alpha:1.0]; // warm peach
     if ([line hasPrefix:@"[RSSI]"])        return [UIColor colorWithRed:0.18 green:0.58 blue:0.95 alpha:1.0]; // cobalt blue
     if ([line hasPrefix:@"[KILLALL]"])     return [UIColor colorWithRed:0.88 green:0.18 blue:0.22 alpha:1.0]; // dark crimson

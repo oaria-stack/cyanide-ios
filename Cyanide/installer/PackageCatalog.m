@@ -5,6 +5,7 @@
 
 #import "PackageCatalog.h"
 #import "../SettingsViewController.h"
+#import "../PatreonAuth.h"
 
 @implementation PackageCatalog
 
@@ -23,7 +24,8 @@ static const NSInteger kSecThemer       = 13;
 {
     NSArray<Package *> *full = [self allPackagesIncludingExperimental];
     BOOL experimentalOn = [[NSUserDefaults standardUserDefaults]
-                            boolForKey:kSettingsExperimentalTweaksEnabled];
+                            boolForKey:kSettingsExperimentalTweaksEnabled]
+                            && cyanide_is_patron();
     if (experimentalOn) return full;
 
     NSMutableArray<Package *> *out = [NSMutableArray arrayWithCapacity:full.count];
@@ -121,6 +123,32 @@ static const NSInteger kSecThemer       = 13;
                                           isNew:YES];
         typeBanner.experimental = YES;
         typeBanner.unstableWarning = @"⚠️ Experimental: extremely unstable and risky. Polls MobileSMS over RemoteCall every ~1.5s, opens SpringBoard sessions on state change, and is known to crash SpringBoard. Detection only fires while Messages.app is running. Battery cost is non-trivial.";
+
+        Package *stageStrip = [[Package alloc] initWithIdentifier:@"com.darksword.stagestrip"
+                                           name:@"Dynamic Stage Lite"
+                               shortDescription:@"Two floating app windows, iPad-style"
+                                longDescription:
+            @"Run two apps as floating, resizable windows on top of SpringBoard.\n\n"
+            @"How to use:\n"
+            @"• Tap the dot in the bottom-right corner of the screen to open the picker.\n"
+            @"• Tap two apps to launch them side-by-side.\n"
+            @"• Drag the top bar to move; drag any corner to resize.\n"
+            @"• X in the top-left of a window closes it.\n"
+            @"• Gear in the picker tray jumps back to Cyanide settings.\n\n"
+            @"First Run is slow. The picker has to enumerate every installed app over RemoteCall and build a tile for each one — expect 1-2 minutes on a fresh install. Re-Runs reuse the cache and are fast.\n\n"
+            @"Rough edges:\n"
+            @"• Touch routing into hosted apps isn't wired — windows are for viewing/switching, not scrolling or typing.\n"
+            @"• Auto-close on full-screen launch is not yet hooked up; close manually with the X.\n"
+            @"• Gestures may stutter while the App Library is still filling in."
+                                        version:version
+                                         author:@"zeroxjf"
+                                       category:@"Experimental"
+                                     symbolName:@"sidebar.left"
+                                           kind:PackageInstallKindToggle
+                                     enabledKey:kSettingsStageStripEnabled
+                                          isNew:YES];
+        stageStrip.experimental = YES;
+        stageStrip.unstableWarning = @"⚠️ Early development. First Run takes 1-2 minutes because the picker enumerates every installed app and builds a tile per app. Re-Runs are fast. Touch routing into hosted windows isn't wired yet, so scrolling/typing inside a floating window may not work.";
 
         Package *themer = [[Package alloc] initWithIdentifier:@"com.darksword.themer"
                                            name:@"Cyanide Themer"
@@ -246,6 +274,7 @@ static const NSInteger kSecThemer       = 13;
             axon,
             nanoRegistry,
             typeBanner,
+            stageStrip,
             themer,
         ];
     });

@@ -153,3 +153,18 @@ xcodebuild \
   CODE_SIGNING_ALLOWED=NO \
   build
 ```
+
+## License
+
+The open-source portion of this repository — everything outside the
+`Cyanide/tweaks/private/` submodule — is licensed under **AGPL-3.0**.
+See `LICENSE`.
+
+The `Cyanide/tweaks/private/` submodule points at a separate private
+repository containing the closed-source experimental tweak
+implementations (Signal Readouts, TypeBanner). Those files are
+**All Rights Reserved**, distributed in compiled form only inside
+official Cyanide releases, and gated to active Patreon supporters at the
+Member tier or above. Public clones won't be able to fetch the
+submodule, and the experimental tweaks will be absent from local builds
+unless you re-implement them.

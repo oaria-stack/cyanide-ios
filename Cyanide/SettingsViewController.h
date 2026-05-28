@@ -48,6 +48,8 @@ extern NSString * const kSettingsAxonLiteEnabled;
 
 extern NSString * const kSettingsTypeBannerEnabled;
 
+extern NSString * const kSettingsStageStripEnabled;
+
 extern NSString * const kSettingsThemerEnabled;
 extern NSString * const kSettingsThemerThemeID;
 extern NSString * const kSettingsThemerCustomThemePath;
