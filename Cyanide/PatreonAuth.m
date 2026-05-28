@@ -5,13 +5,14 @@
 
 #import "PatreonAuth.h"
 #import "LogTextView.h"
-#import <WebKit/WebKit.h>
+#import <AuthenticationServices/AuthenticationServices.h>
 #import <Security/Security.h>
 
 
-static NSString * const kWorkerBaseURL = @"https://cyanide-patreon-auth.hackerboii.workers.dev";
-static NSString * const kClientID      = @"OmxCv5I3o6-STTChSezarjQ8-3g74Lytuojfk3c8a9e7g9Ze63cuxhnANzYyG914";
-static NSString * const kRedirectURI   = @"https://github.com/zeroxjf/cyanide-ios/patreon/callback";
+static NSString * const kWorkerBaseURL   = @"https://cyanide-patreon-auth.hackerboii.workers.dev";
+static NSString * const kClientID        = @"OmxCv5I3o6-STTChSezarjQ8-3g74Lytuojfk3c8a9e7g9Ze63cuxhnANzYyG914";
+static NSString * const kCallbackScheme  = @"com.zeroxjf.ios-cyanide1";
+static NSString * const kRedirectURI     = @"https://cyanide-patreon-auth.hackerboii.workers.dev/patreon/callback";
 
 static const uint8_t kPatreonPubKey[65] = {
     0x04,
@@ -285,90 +286,29 @@ static BOOL accept_worker_response(NSDictionary *resp)
     return YES;
 }
 
-#pragma mark - WKWebView host (authorization-code grab)
+#pragma mark - ASWebAuthenticationSession host
 
-@interface CYPatreonAuthWebViewController : UIViewController <WKNavigationDelegate>
-@property (nonatomic, copy)   void (^codeHandler)(NSString *_Nullable code, NSError *_Nullable error);
-@property (nonatomic, strong) WKWebView *webView;
-@property (nonatomic, assign) BOOL handled;
+@interface CYPatreonAuthPresenter : NSObject <ASWebAuthenticationPresentationContextProviding>
+@property (nonatomic, weak) UIViewController *anchor;
 @end
 
-@implementation CYPatreonAuthWebViewController
-
-- (void)viewDidLoad
+@implementation CYPatreonAuthPresenter
+- (ASPresentationAnchor)presentationAnchorForWebAuthenticationSession:(ASWebAuthenticationSession *)session
 {
-    [super viewDidLoad];
-    self.title = @"Link Patreon";
-    self.view.backgroundColor = UIColor.systemBackgroundColor;
-
-    WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
-    cfg.websiteDataStore = [WKWebsiteDataStore defaultDataStore];
-    self.webView = [[WKWebView alloc] initWithFrame:self.view.bounds configuration:cfg];
-    self.webView.navigationDelegate = self;
-    self.webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [self.view addSubview:self.webView];
-
-    self.navigationItem.leftBarButtonItem =
-        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
-                                                      target:self
-                                                      action:@selector(cancelTapped)];
-
-    NSURLComponents *c = [NSURLComponents componentsWithString:@"https://www.patreon.com/oauth2/authorize"];
-    c.queryItems = @[
-        [NSURLQueryItem queryItemWithName:@"response_type" value:@"code"],
-        [NSURLQueryItem queryItemWithName:@"client_id"     value:kClientID],
-        [NSURLQueryItem queryItemWithName:@"redirect_uri"  value:kRedirectURI],
-        [NSURLQueryItem queryItemWithName:@"scope"         value:@"identity identity.memberships"],
-    ];
-    [self.webView loadRequest:[NSURLRequest requestWithURL:c.URL]];
-}
-
-- (void)cancelTapped
-{
-    [self finishWithCode:nil error:[NSError errorWithDomain:@"CyanidePatreon" code:NSUserCancelledError
-                                                   userInfo:@{NSLocalizedDescriptionKey: @"Cancelled"}]];
-}
-
-- (void)finishWithCode:(NSString *_Nullable)code error:(NSError *_Nullable)error
-{
-    if (self.handled) return;
-    self.handled = YES;
-    void (^handler)(NSString *, NSError *) = self.codeHandler;
-    self.codeHandler = nil;
-    [self dismissViewControllerAnimated:YES completion:^{
-        if (handler) handler(code, error);
-    }];
-}
-
-- (void)webView:(WKWebView *)webView
-decidePolicyForNavigationAction:(WKNavigationAction *)action
-decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler
-{
-    NSURL *url = action.request.URL;
-    NSString *abs = url.absoluteString ?: @"";
-    if ([abs hasPrefix:kRedirectURI]) {
-        decisionHandler(WKNavigationActionPolicyCancel);
-        NSURLComponents *comp = [NSURLComponents componentsWithURL:url resolvingAgainstBaseURL:NO];
-        NSString *code = nil, *errorStr = nil;
-        for (NSURLQueryItem *q in comp.queryItems) {
-            if ([q.name isEqualToString:@"code"])  code = q.value;
-            if ([q.name isEqualToString:@"error"]) errorStr = q.value;
+    UIWindow *w = self.anchor.view.window;
+    if (w) return w;
+    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
+        if (![scene isKindOfClass:[UIWindowScene class]]) continue;
+        for (UIWindow *win in ((UIWindowScene *)scene).windows) {
+            if (win.isKeyWindow) return win;
         }
-        if (code.length > 0) {
-            [self finishWithCode:code error:nil];
-        } else {
-            NSString *desc = errorStr.length > 0
-                ? [@"Patreon: " stringByAppendingString:errorStr]
-                : @"Patreon redirect missing authorization code";
-            [self finishWithCode:nil error:[NSError errorWithDomain:@"CyanidePatreon" code:-3
-                                                          userInfo:@{NSLocalizedDescriptionKey: desc}]];
-        }
-        return;
     }
-    decisionHandler(WKNavigationActionPolicyAllow);
+    return [[UIWindow alloc] init];
 }
-
 @end
+
+static CYPatreonAuthPresenter *gPatreonPresenter;
+static ASWebAuthenticationSession *gPatreonSession;
 
 #pragma mark - Public API
 
@@ -381,29 +321,74 @@ void cyanide_patreon_authenticate(UIViewController *presenter,
         });
     };
 
-    CYPatreonAuthWebViewController *auth = [[CYPatreonAuthWebViewController alloc] init];
-    auth.codeHandler = ^(NSString *code, NSError *err) {
-        if (err || code.length == 0) {
-            finish(NO, err ?: [NSError errorWithDomain:@"CyanidePatreon" code:-4
-                                              userInfo:@{NSLocalizedDescriptionKey: @"No authorization code"}]);
-            return;
-        }
-        printf("[PATREON] authorization code received; exchanging via Worker\n");
-        worker_post(@"/patreon/exchange", @{ @"code": code }, ^(NSDictionary *resp, NSError *werr) {
-            if (werr) { finish(NO, werr); return; }
-            if (!accept_worker_response(resp)) {
-                finish(NO, [NSError errorWithDomain:@"CyanidePatreon" code:-5
-                                           userInfo:@{NSLocalizedDescriptionKey: @"Invalid Worker response"}]);
+    NSURLComponents *c = [NSURLComponents componentsWithString:@"https://www.patreon.com/oauth2/authorize"];
+    c.queryItems = @[
+        [NSURLQueryItem queryItemWithName:@"response_type" value:@"code"],
+        [NSURLQueryItem queryItemWithName:@"client_id"     value:kClientID],
+        [NSURLQueryItem queryItemWithName:@"redirect_uri"  value:kRedirectURI],
+        [NSURLQueryItem queryItemWithName:@"scope"         value:@"identity identity.memberships"],
+    ];
+    NSURL *authURL = c.URL;
+
+    gPatreonPresenter = [[CYPatreonAuthPresenter alloc] init];
+    gPatreonPresenter.anchor = presenter;
+
+    ASWebAuthenticationSession *session = [[ASWebAuthenticationSession alloc]
+        initWithURL:authURL
+        callbackURLScheme:kCallbackScheme
+        completionHandler:^(NSURL *callbackURL, NSError *err) {
+            gPatreonSession = nil;
+            gPatreonPresenter = nil;
+
+            if (err) {
+                if ([err.domain isEqualToString:ASWebAuthenticationSessionErrorDomain] &&
+                    err.code == ASWebAuthenticationSessionErrorCodeCanceledLogin) {
+                    finish(NO, [NSError errorWithDomain:@"CyanidePatreon" code:NSUserCancelledError
+                                              userInfo:@{NSLocalizedDescriptionKey: @"Cancelled"}]);
+                } else {
+                    finish(NO, err);
+                }
                 return;
             }
-            printf("[PATREON] linked; is_patron=%d\n", (int)cyanide_is_patron());
-            finish(YES, nil);
-        });
-    };
 
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:auth];
-    nav.modalPresentationStyle = UIModalPresentationFormSheet;
-    [presenter presentViewController:nav animated:YES completion:nil];
+            NSString *code = nil, *errorStr = nil;
+            NSURLComponents *comp = [NSURLComponents componentsWithURL:callbackURL resolvingAgainstBaseURL:NO];
+            for (NSURLQueryItem *q in comp.queryItems) {
+                if ([q.name isEqualToString:@"code"])  code = q.value;
+                if ([q.name isEqualToString:@"error"]) errorStr = q.value;
+            }
+            if (code.length == 0) {
+                NSString *desc = errorStr.length > 0
+                    ? [@"Patreon: " stringByAppendingString:errorStr]
+                    : @"Patreon redirect missing authorization code";
+                finish(NO, [NSError errorWithDomain:@"CyanidePatreon" code:-3
+                                           userInfo:@{NSLocalizedDescriptionKey: desc}]);
+                return;
+            }
+
+            printf("[PATREON] authorization code received; exchanging via Worker\n");
+            worker_post(@"/patreon/exchange",
+                        @{ @"code": code, @"redirect_uri": kRedirectURI },
+                        ^(NSDictionary *resp, NSError *werr) {
+                if (werr) { finish(NO, werr); return; }
+                if (!accept_worker_response(resp)) {
+                    finish(NO, [NSError errorWithDomain:@"CyanidePatreon" code:-5
+                                               userInfo:@{NSLocalizedDescriptionKey: @"Invalid Worker response"}]);
+                    return;
+                }
+                printf("[PATREON] linked; is_patron=%d\n", (int)cyanide_is_patron());
+                finish(YES, nil);
+            });
+        }];
+    session.presentationContextProvider = gPatreonPresenter;
+    gPatreonSession = session;
+
+    if (![session start]) {
+        gPatreonSession = nil;
+        gPatreonPresenter = nil;
+        finish(NO, [NSError errorWithDomain:@"CyanidePatreon" code:-6
+                                   userInfo:@{NSLocalizedDescriptionKey: @"Could not start authentication session"}]);
+    }
 }
 
 void cyanide_patreon_sign_out(void)

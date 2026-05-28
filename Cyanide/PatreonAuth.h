@@ -2,10 +2,6 @@
 //  PatreonAuth.h
 //  Cyanide
 //
-//  Client-side Patreon OAuth2 + patron-status gate. Modeled on AltStore's
-//  PatreonAPI: authorization-code flow in a WKWebView, tokens in Keychain,
-//  /identity poll for patron status, cached in NSUserDefaults.
-//
 
 #import <UIKit/UIKit.h>
 
@@ -44,9 +40,9 @@ NSInteger cyanide_patreon_pledge_cents(void);
 // Last successful /identity refresh timestamp, nil if never refreshed.
 NSDate * _Nullable cyanide_patreon_last_refresh_date(void);
 
-// Presents the OAuth WKWebView from `presenter` and runs the authorization
-// code → token → identity fetch flow. `completion` fires on the main queue
-// once the cached status has been updated (or with an error).
+// Presents the OAuth flow anchored to `presenter`'s window. `completion`
+// fires on the main queue once the cached status has been updated (or with
+// an error).
 void cyanide_patreon_authenticate(UIViewController *presenter,
                                   void (^_Nullable completion)(BOOL success, NSError * _Nullable error));
 

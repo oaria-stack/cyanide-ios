@@ -28,6 +28,17 @@
 	</array>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.zeroxjf.ios-cyanide1.patreon</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.zeroxjf.ios-cyanide1</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleIcons</key>
 	<dict>
 		<key>CFBundleAlternateIcons</key>

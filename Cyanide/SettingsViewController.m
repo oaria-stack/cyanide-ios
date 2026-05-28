@@ -444,7 +444,9 @@ static NSUInteger settings_live_failure_limit(NSUInteger foregroundLimit)
 
 static BOOL settings_rssi_install_allowed(void)
 {
-    return NO;
+    if (!cyanide_is_patron()) return NO;
+    return [[NSUserDefaults standardUserDefaults]
+            boolForKey:kSettingsExperimentalTweaksEnabled];
 }
 
 static BOOL settings_read_screen_awake(void)
