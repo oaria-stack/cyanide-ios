@@ -141,13 +141,6 @@ struct VMObject vm_get_object(uint64_t map, uint64_t address)
  
     uint32_t vme_object = entry.vme_object_or_delta;
     uint64_t vmeObject = vm_unpack_pointer((uint64_t)vme_object, &params);
-    if (!is_kaddr_valid(vmeObject)) {
-        printf("[%s:%d] invalid VM object 0x%llx for user address 0x%llx\n",
-               __FUNCTION__, __LINE__,
-               (unsigned long long)vmeObject,
-               (unsigned long long)address);
-        return result;
-    }
  
     uint64_t vme_offset_raw = entry.vme_offset;
     uint64_t objectOffs = VME_OFFSET(vme_offset_raw);
@@ -166,12 +159,6 @@ struct VMObject vm_get_object(uint64_t map, uint64_t address)
 struct VMShmem vm_create_shmem_with_object(struct VMObject *object)
 {
     struct VMShmem shmem = {0};
-    if (!object || !is_kaddr_valid(object->address)) {
-        printf("[%s:%d] invalid VM object 0x%llx\n",
-               __FUNCTION__, __LINE__,
-               object ? (unsigned long long)object->address : 0);
-        return shmem;
-    }
     
     uint64_t size = kread64(object->address + off_vm_object_vo_un1_vou_size);
     size = mach_vm_round_page(size);
