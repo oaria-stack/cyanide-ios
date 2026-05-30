@@ -25,20 +25,9 @@ extern NSString * const kSettingsDSZeroWakeAnimation;
 extern NSString * const kSettingsDSZeroBacklightFade;
 extern NSString * const kSettingsDSDoubleTapToLock;
 
-extern NSString * const kSettingsLayoutExtrasEnabled;
-extern NSString * const kSettingsLayoutHomeExtraLeft;
-extern NSString * const kSettingsLayoutHomeExtraRight;
-extern NSString * const kSettingsLayoutHomeExtraTop;
-extern NSString * const kSettingsLayoutHomeExtraBottom;
-extern NSString * const kSettingsLayoutDockExtraHorizontal;
-extern NSString * const kSettingsLayoutHomeScalePct;
-extern NSString * const kSettingsLayoutDockScalePct;
-
 extern NSString * const kSettingsStatBarEnabled;
 extern NSString * const kSettingsStatBarCelsius;
-extern NSString * const kSettingsStatBarShowNet;
-extern NSString * const kSettingsStatBarShowCPU;
-extern NSString * const kSettingsStatBarShowLabels;
+extern NSString * const kSettingsStatBarHideNet;
 
 extern NSString * const kSettingsRSSIDisplayEnabled;
 extern NSString * const kSettingsRSSIDisplayWifi;
@@ -46,22 +35,21 @@ extern NSString * const kSettingsRSSIDisplayCell;
 
 extern NSString * const kSettingsAxonLiteEnabled;
 
+extern NSString * const kSettingsSnowBoardLiteEnabled;
+
+extern NSString * const kSettingsAtriaLiteEnabled;
+extern NSString * const kSettingsAtriaLiteDockIcons;
+extern NSString * const kSettingsAtriaLiteCols;
+extern NSString * const kSettingsAtriaLiteRows;
+extern NSString * const kSettingsAtriaLiteHideLabels;
+extern NSString * const kSettingsAtriaLiteIconScale;
+extern NSString * const kSettingsAtriaLiteIconOffsetY;
+
 extern NSString * const kSettingsTypeBannerEnabled;
-
-extern NSString * const kSettingsStageStripEnabled;
-
-extern NSString * const kSettingsThemerEnabled;
-extern NSString * const kSettingsThemerThemeID;
-extern NSString * const kSettingsThemerCustomThemePath;
-extern NSString * const kSettingsThemerCustomThemeName;
-
-extern NSString * const kSettingsExperimentalTweaksEnabled;
 
 extern NSString * const kSettingsLogUploadEnabled;
 
 extern NSString * const kSettingsActionsDidCompleteNotification;
-extern NSString * const kSettingsActionsDidCompleteSuccessKey;
-extern NSString * const kSettingsActionsDidCompleteMessageKey;
 
 // Returns YES if the tweak whose master enable lives at `key` was successfully
 // applied in this app session. Cleared on launch, on cleanup, and whenever the
@@ -75,8 +63,6 @@ BOOL settings_device_supported(void);
 // inline. Presented from `host`.
 void cyanide_present_contact(UIViewController *host);
 BOOL settings_apply_ota_disabled(BOOL disabled);
-BOOL settings_themer_has_selected_theme(void);
-NSString *settings_themer_selected_theme_display_name(void);
 
 // Synchronously runs kexploit and writes/clears the NanoRegistry pairing-
 // compatibility override using the four numbers currently in NSUserDefaults
