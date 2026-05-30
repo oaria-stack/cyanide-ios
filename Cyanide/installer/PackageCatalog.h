@@ -12,16 +12,8 @@ NS_ASSUME_NONNULL_BEGIN
 
 @interface PackageCatalog : NSObject
 
-// Flat list, in display order. Filtered by the master experimental gate —
-// packages with `experimental == YES` are omitted unless
-// kSettingsExperimentalTweaksEnabled is on.
+// Flat list, in display order.
 + (NSArray<Package *> *)allPackages;
-
-// Full list, ignoring the experimental gate. Use only for internal lookups
-// (e.g. translating an identifier the user previously installed back into a
-// Package even after they flip the master switch off). Never render this
-// list directly.
-+ (NSArray<Package *> *)allPackagesIncludingExperimental;
 
 // Section header order, derived from allPackages.
 + (NSArray<NSString *> *)categoriesInOrder;
