@@ -8,20 +8,10 @@
 static NSString * const kReleasesAPI             = @"https://api.github.com/repos/zeroxjf/cyanide-ios/releases/latest";
 static NSString * const kUpdateSkippedVersionKey = @"installer.update.skippedVersion";
 static NSString * const kUpdateSnoozeUntilKey    = @"installer.update.snoozeUntil";
-static NSString * const kUpdateLastCheckAtKey    = @"installer.update.lastCheckAt";
 static const NSTimeInterval kSnoozeDuration      = 24 * 60 * 60; // 24h
-// Auto-check throttle. Replaces the old "once per process" guard so a
-// long-running suspended process doesn't permanently squelch the launch
-// check. Only set after a *completed* HTTP response (success or controlled
-// rejection), so a network failure doesn't burn the window.
-static const NSTimeInterval kAutoCheckMinInterval = 24 * 60 * 60; // 24h
 
 @interface UpdateChecker ()
-// True once a *completed* auto-check has run in this process. Combined with
-// the persisted timestamp below: a fresh process always gets one check, and
-// a long-resident process re-checks after the throttle window elapses.
-@property (nonatomic, assign) BOOL didCompleteAutoCheckThisProcess;
-@property (nonatomic, assign) BOOL autoCheckInFlight;
+@property (nonatomic, assign) BOOL didCheckThisLaunch;
 @end
 
 @implementation UpdateChecker
@@ -64,32 +54,12 @@ static int compare_versions(NSString *a, NSString *b)
 
 - (void)checkForUpdatesIfNeededFrom:(UIViewController *)presenter
 {
+    if (self.didCheckThisLaunch) return;
+    self.didCheckThisLaunch = YES;
     if (!presenter) return;
-    if (self.autoCheckInFlight) return;
 
-    // Two-gate policy: fire when EITHER this process hasn't completed an
-    // auto-check yet, OR the persisted throttle window has elapsed. The
-    // per-process flag guarantees one check on cold launch even if a
-    // recently-quit prior process already stamped the timestamp; the
-    // timestamp re-arms within a long-resident process after kAutoCheckMinInterval.
-    BOOL processNeedsCheck = !self.didCompleteAutoCheckThisProcess;
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    NSDate *lastAt = [d objectForKey:kUpdateLastCheckAtKey];
-    BOOL throttleElapsed = YES;
-    if ([lastAt isKindOfClass:NSDate.class]) {
-        NSTimeInterval since = -[lastAt timeIntervalSinceNow];
-        throttleElapsed = (since < 0) || (since >= kAutoCheckMinInterval);
-    }
-    if (!processNeedsCheck && !throttleElapsed) {
-        NSTimeInterval since = lastAt ? -[lastAt timeIntervalSinceNow] : 0;
-        printf("[UPDATE] auto-check skipped: throttled (%.0fs since last, window=%.0fs)\n",
-               since, kAutoCheckMinInterval);
-        return;
-    }
-    self.autoCheckInFlight = YES;
-
-    printf("[UPDATE] checking latest release (current=%s, processFirst=%d, throttleElapsed=%d)\n",
-           self.currentVersion.UTF8String, processNeedsCheck, throttleElapsed);
+    printf("[UPDATE] checking latest release (current=%s)\n",
+           self.currentVersion.UTF8String);
 
     NSURL *url = [NSURL URLWithString:kReleasesAPI];
     NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
@@ -102,13 +72,7 @@ static int compare_versions(NSString *a, NSString *b)
         dataTaskWithRequest:req
           completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error)
     {
-        __strong typeof(weakSelf) strongSelf = weakSelf;
-        if (strongSelf) strongSelf.autoCheckInFlight = NO;
-
         if (error || !data) {
-            // Don't stamp the timestamp or set the per-process flag — a
-            // network failure shouldn't burn either gate; next foreground
-            // should retry.
             printf("[UPDATE] check failed: %s\n",
                    error ? error.localizedDescription.UTF8String : "no data");
             return;
@@ -124,32 +88,26 @@ static int compare_versions(NSString *a, NSString *b)
         NSString *htmlURL = release[@"html_url"];
         id bodyObj        = release[@"body"];
         NSString *body    = [bodyObj isKindOfClass:NSString.class] ? (NSString *)bodyObj : nil;
-        if (![tag isKindOfClass:NSString.class] || ![htmlURL isKindOfClass:NSString.class]) {
-            printf("[UPDATE] release feed missing tag_name/html_url\n");
-            return;
-        }
+        if (![tag isKindOfClass:NSString.class] || ![htmlURL isKindOfClass:NSString.class]) return;
 
-        // From here we have a usable response — burn both gates.
-        if (strongSelf) strongSelf.didCompleteAutoCheckThisProcess = YES;
-        [[NSUserDefaults standardUserDefaults] setObject:[NSDate date] forKey:kUpdateLastCheckAtKey];
+        __strong typeof(weakSelf) self_ = weakSelf;
+        if (!self_) return;
 
-        if (!strongSelf) return;
-
-        NSString *latest  = [strongSelf normalizeTag:tag];
-        NSString *current = [strongSelf currentVersion];
+        NSString *latest  = [self_ normalizeTag:tag];
+        NSString *current = [self_ currentVersion];
         if (compare_versions(latest, current) <= 0) {
             printf("[UPDATE] already on latest (current=%s latest=%s)\n",
                    current.UTF8String, latest.UTF8String);
             return;
         }
 
-        NSUserDefaults *d2 = [NSUserDefaults standardUserDefaults];
-        NSString *skipped = [d2 stringForKey:kUpdateSkippedVersionKey];
+        NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+        NSString *skipped = [d stringForKey:kUpdateSkippedVersionKey];
         if (skipped && [skipped isEqualToString:latest]) {
             printf("[UPDATE] version %s skipped by user; not prompting\n", latest.UTF8String);
             return;
         }
-        NSDate *snoozeUntil = [d2 objectForKey:kUpdateSnoozeUntilKey];
+        NSDate *snoozeUntil = [d objectForKey:kUpdateSnoozeUntilKey];
         if ([snoozeUntil isKindOfClass:NSDate.class] && [snoozeUntil compare:[NSDate date]] == NSOrderedDescending) {
             printf("[UPDATE] snoozed until %s; not prompting\n", snoozeUntil.description.UTF8String);
             return;
@@ -159,124 +117,11 @@ static int compare_versions(NSString *a, NSString *b)
                latest.UTF8String, current.UTF8String);
 
         dispatch_async(dispatch_get_main_queue(), ^{
-            [strongSelf presentUpdateAlertFrom:presenter
-                                        latest:latest
-                                       current:current
-                                           url:htmlURL
-                                         notes:body];
-        });
-    }];
-    [task resume];
-}
-
-- (void)checkForUpdatesManuallyFrom:(UIViewController *)presenter
-{
-    if (!presenter) return;
-
-    printf("[UPDATE] manual check requested (current=%s)\n",
-           self.currentVersion.UTF8String);
-
-    UIAlertController *checking = [UIAlertController
-        alertControllerWithTitle:@"Checking for Updates…"
-                         message:@"\n\n"
-                  preferredStyle:UIAlertControllerStyleAlert];
-    UIActivityIndicatorView *spin =
-        [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleMedium];
-    spin.translatesAutoresizingMaskIntoConstraints = NO;
-    [spin startAnimating];
-    [checking.view addSubview:spin];
-    [NSLayoutConstraint activateConstraints:@[
-        [spin.centerXAnchor constraintEqualToAnchor:checking.view.centerXAnchor],
-        [spin.bottomAnchor  constraintEqualToAnchor:checking.view.bottomAnchor constant:-20],
-    ]];
-
-    UIViewController *top = presenter;
-    while (top.presentedViewController) top = top.presentedViewController;
-    [top presentViewController:checking animated:YES completion:nil];
-
-    NSURL *url = [NSURL URLWithString:kReleasesAPI];
-    NSMutableURLRequest *req = [NSMutableURLRequest requestWithURL:url
-                                                       cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
-                                                   timeoutInterval:10.0];
-    [req setValue:@"application/vnd.github+json" forHTTPHeaderField:@"Accept"];
-
-    __weak typeof(self) weakSelf = self;
-    NSURLSessionDataTask *task = [[NSURLSession sharedSession]
-        dataTaskWithRequest:req
-          completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error)
-    {
-        __strong typeof(weakSelf) self_ = weakSelf;
-        NSString *current = self_ ? [self_ currentVersion] : @"unknown";
-
-        NSString *failureReason = nil;
-        NSString *latest = nil;
-        NSString *htmlURL = nil;
-        NSString *notes = nil;
-
-        if (error || !data) {
-            failureReason = error ? error.localizedDescription : @"No response from GitHub.";
-        } else {
-            NSError *jsonErr = nil;
-            id obj = [NSJSONSerialization JSONObjectWithData:data options:0 error:&jsonErr];
-            if (jsonErr || ![obj isKindOfClass:NSDictionary.class]) {
-                failureReason = @"Could not parse the release feed.";
-            } else {
-                NSDictionary *release = obj;
-                id tagObj  = release[@"tag_name"];
-                id urlObj  = release[@"html_url"];
-                id bodyObj = release[@"body"];
-                if (![tagObj isKindOfClass:NSString.class] || ![urlObj isKindOfClass:NSString.class]) {
-                    failureReason = @"Release feed was missing fields.";
-                } else {
-                    latest  = self_ ? [self_ normalizeTag:tagObj] : tagObj;
-                    htmlURL = urlObj;
-                    notes   = [bodyObj isKindOfClass:NSString.class] ? bodyObj : nil;
-                }
-            }
-        }
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [checking dismissViewControllerAnimated:YES completion:^{
-                if (failureReason) {
-                    printf("[UPDATE] manual check failed: %s\n", failureReason.UTF8String);
-                    UIAlertController *ac = [UIAlertController
-                        alertControllerWithTitle:@"Check Failed"
-                                         message:[NSString stringWithFormat:
-                                                  @"Couldn't reach GitHub.\n\n%@", failureReason]
-                                  preferredStyle:UIAlertControllerStyleAlert];
-                    [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-                    UIViewController *top2 = presenter;
-                    while (top2.presentedViewController) top2 = top2.presentedViewController;
-                    [top2 presentViewController:ac animated:YES completion:nil];
-                    return;
-                }
-
-                if (compare_versions(latest, current) <= 0) {
-                    printf("[UPDATE] manual check: up to date (current=%s latest=%s)\n",
-                           current.UTF8String, latest.UTF8String);
-                    UIAlertController *ac = [UIAlertController
-                        alertControllerWithTitle:@"Up to Date"
-                                         message:[NSString stringWithFormat:
-                                                  @"You're on the latest release.\n\nInstalled: %@\nLatest: %@",
-                                                  current, latest]
-                                  preferredStyle:UIAlertControllerStyleAlert];
-                    [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-                    UIViewController *top2 = presenter;
-                    while (top2.presentedViewController) top2 = top2.presentedViewController;
-                    [top2 presentViewController:ac animated:YES completion:nil];
-                    return;
-                }
-
-                printf("[UPDATE] manual check: update available %s (current %s)\n",
-                       latest.UTF8String, current.UTF8String);
-                if (self_) {
-                    [self_ presentUpdateAlertFrom:presenter
-                                           latest:latest
-                                          current:current
-                                              url:htmlURL
-                                            notes:notes];
-                }
-            }];
+            [self_ presentUpdateAlertFrom:presenter
+                                   latest:latest
+                                  current:current
+                                      url:htmlURL
+                                    notes:body];
         });
     }];
     [task resume];
