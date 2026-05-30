@@ -41,7 +41,7 @@
     UITabBarController *tab = (UITabBarController *)self.window.rootViewController;
     if (![tab isKindOfClass:UITabBarController.class] || tab.viewControllers.count == 0) return;
     self.didSelectInitialTab = YES;
-    tab.selectedIndex = 0; // Installer tab
+    tab.selectedIndex = 0; // Installer tab (no Log tab anymore)
 }
 
 
@@ -87,9 +87,8 @@
 - (void)sceneDidBecomeActive:(UIScene *)scene {
     [self selectInitialTabIfNeeded];
     settings_application_did_become_active();
-    // Independent paths: log collection opt-in notice (one-time) and update
-    // check (every foreground; UpdateChecker enforces a per-process + 24-hour
-    // persisted throttle so the API isn't hammered).
+    // Independent paths: log collection opt-in notice (one-time) and update check
+    // (every foreground, deduped per-process by UpdateChecker.didCheckThisLaunch).
     // The two can stack on first launch — that's intentional, an available
     // update shouldn't be hidden behind a privacy preference.
     [self showLogCollectionOptInNoticeIfNeeded];
