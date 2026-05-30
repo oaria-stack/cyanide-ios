@@ -202,9 +202,9 @@ static void patch_homescreen_grid(uint64_t iconCtrl, int cols, int rows, bool hi
 
 bool sbcustomizer_apply_in_session(int dockIcons, int hsCols, int hsRows, bool hideLabels)
 {
-    dockIcons = clamp(dockIcons, 4, 7);
-    hsCols    = clamp(hsCols,    3, 7);
-    hsRows    = clamp(hsRows,    4, 8);
+    dockIcons = clamp(dockIcons, 1, 12);
+    hsCols    = clamp(hsCols,    1, 12);
+    hsRows    = clamp(hsRows,    1, 12);
     printf("[SBC] === entry === dock=%d hs=%dx%d hideLabels=%d\n",
            dockIcons, hsCols, hsRows, hideLabels);
 
