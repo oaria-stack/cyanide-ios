@@ -56,12 +56,6 @@ typedef NS_ENUM(NSInteger, PackageInstallKind) {
 // but cannot queue a fresh install until the reason is cleared.
 @property (nonatomic, copy, nullable) NSString *installDisabledReason;
 
-// YES means the package is gated behind kSettingsExperimentalTweaksEnabled.
-// When the master experimental switch is off, +[PackageCatalog allPackages]
-// filters experimental packages out entirely so they don't appear in the
-// Installer list or the Settings tweak-bundle list.
-@property (nonatomic, assign) BOOL experimental;
-
 @property (nonatomic, readonly, assign) BOOL isInstalled;
 @property (nonatomic, readonly, assign) BOOL isQueuedForApply;
 @property (nonatomic, readonly, assign) BOOL isInstallDisabled;
