@@ -8,18 +8,18 @@
 #import "tweaks/sbcustomizer.h"
 #import "tweaks/powercuff.h"
 #import "tweaks/statbar.h"
-#import "tweaks/private/rssidisplay.h"
+#import "tweaks/rssidisplay.h"
 #import "tweaks/axonlite.h"
-#import "tweaks/private/typebanner.h"
+#import "tweaks/snowboardlite.h"
+#import "tweaks/atrialite.h"
+#import "tweaks/typebanner.h"
 #import "tweaks/darksword_tweaks.h"
 #import "tweaks/darksword_ota.h"
-#import "tweaks/darksword_layout.h"
 #import "tweaks/nano_registry.h"
-#import "tweaks/killallapps.h"
-#import "tweaks/stagestrip.h"
-#import "tweaks/themer.h"
-
-#import <objc/runtime.h>
+#import "tweaks/syscolpatcher.h"
+#import "tweaks/doodlelite.h"
+#import "tweaks/iconshapeslite.h"
+#import "tweaks/customiconslite.h"
 #import "DSKeepAlive.h"
 #import "TaskRop/RemoteCall.h"
 #import "kexploit/kutils.h"
@@ -28,96 +28,61 @@
 #import "installer/Package.h"
 #import "installer/PackageCatalog.h"
 #import "installer/PackageQueue.h"
-#import "docs/DocsViewController.h"
-#import "PatreonAuth.h"
-#import "UpdateChecker.h"
 #import <WebKit/WebKit.h>
 #import <MessageUI/MessageUI.h>
-#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <notify.h>
 #import <sys/utsname.h>
 #import <time.h>
 #import <unistd.h>
 
-@interface DSRespringOverlayView : UIView
+@interface DSRespringViewController : UIViewController <WKNavigationDelegate>
 @property (nonatomic, strong) WKWebView *webView;
-@property (nonatomic, assign) BOOL didLoadPayload;
 @end
 
-@implementation DSRespringOverlayView
+@implementation DSRespringViewController
 
-- (NSString *)respringHTML {
-    // Verbatim port of Lara's respring.swift payload (by rooootdev,
-    // skidded from jailbreak.party; web approach by @neonmodder123).
-    return @"<!DOCTYPE html>\n"
-           @"<html>\n"
-           @"    <body>\n"
-           @"        <!--  big credit to @neonmodder123  -->\n"
-           @"        <iframe id=\"frame\" srcdoc=\"\" sandbox=\"allow-forms allow-modals allow-orientation-lock allow-pointer-lock allow-popups allow-presentation allow-scripts\"></iframe>\n"
-           @"        <script>\n"
-           @"            const frame = document.getElementById('frame');\n"
-           @"            const script = `\n"
-           @"                <html>\n"
-           @"                <body>\n"
-           @"                    <script>\n"
-           @"                        const container = document.createElement('div');\n"
-           @"                        container.style.cssText = 'perspective: 1px; perspective-origin: 9999999% 9999999%;';\n"
-           @"                        document.body.appendChild(container);\n"
-           @"    \n"
-           @"                        for (let i = 0; i < 500; i++) {\n"
-           @"                            let d = document.createElement('div');\n"
-           @"                            d.style.cssText = 'position: absolute; width: 100vw; height: 100vh; backdrop-filter: blur(100px); -webkit-backdrop-filter: blur(100px); transform: translate3d(100000px, 100000px, ' + i + 'px) rotateY(90deg);';\n"
-           @"                            container.appendChild(d);\n"
-           @"                        }\n"
-           @"    \n"
-           @"                        setInterval(() => {\n"
-           @"                            navigator.share({ title: 'R', text: 'R'.repeat(100000) }).catch(() => {});\n"
-           @"                            let x = new Uint8Array(1024 * 1024 * 10);\n"
-           @"                            crypto.getRandomValues(x);\n"
-           @"                        }, 0);\n"
-           @"                    <\\/script>\n"
-           @"                </body>\n"
-           @"                </html>\n"
-           @"            `;\n"
-           @"    \n"
-           @"            frame.srcdoc = script;\n"
-           @"        </script>\n"
-           @"    </body>\n"
-           @"</html>";
+- (void)viewDidLoad {
+    [super viewDidLoad];
+    self.view.backgroundColor = [UIColor colorWithRed:0.043 green:0.043 blue:0.063 alpha:1.0];
+    self.title = @"Respring";
+
+    self.navigationItem.leftBarButtonItem =
+        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemCancel
+                                                      target:self
+                                                      action:@selector(dismissSelf)];
+
+    WKWebViewConfiguration *cfg = [[WKWebViewConfiguration alloc] init];
+    cfg.allowsInlineMediaPlayback = YES;
+    self.webView = [[WKWebView alloc] initWithFrame:CGRectZero configuration:cfg];
+    self.webView.translatesAutoresizingMaskIntoConstraints = NO;
+    self.webView.navigationDelegate = self;
+    self.webView.opaque = NO;
+    self.webView.backgroundColor = self.view.backgroundColor;
+    self.webView.scrollView.backgroundColor = self.view.backgroundColor;
+    [self.view addSubview:self.webView];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.webView.topAnchor      constraintEqualToAnchor:self.view.safeAreaLayoutGuide.topAnchor],
+        [self.webView.bottomAnchor   constraintEqualToAnchor:self.view.bottomAnchor],
+        [self.webView.leadingAnchor  constraintEqualToAnchor:self.view.leadingAnchor],
+        [self.webView.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    ]];
+
+    NSURL *url = [NSURL URLWithString:@"https://zeroxjf.github.io/lightsaber/respring.html"];
+    [self.webView loadRequest:[NSURLRequest requestWithURL:url
+                                              cachePolicy:NSURLRequestReloadIgnoringLocalAndRemoteCacheData
+                                          timeoutInterval:10]];
 }
 
-- (instancetype)initWithFrame:(CGRect)frame {
-    self = [super initWithFrame:frame];
-    if (!self) return nil;
-    self.backgroundColor = [UIColor blackColor];
-    self.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    return self;
+- (void)dismissSelf {
+    [self dismissViewControllerAnimated:YES completion:nil];
 }
 
-- (void)didMoveToWindow {
-    [super didMoveToWindow];
-    if (self.window) [self loadRespringPayload];
+- (void)webView:(WKWebView *)webView didFailNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+    printf("[RESPRING] navigation failed: %s\n", error.localizedDescription.UTF8String);
 }
 
-- (void)layoutSubviews {
-    [super layoutSubviews];
-    self.webView.frame = self.bounds;
-}
-
-- (void)loadRespringPayload {
-    if (self.didLoadPayload) return;
-    self.didLoadPayload = YES;
-    printf("[RESPRING] loading Lara-style in-app WebKit overlay\n");
-
-    // Mirrors Lara's respringview verbatim: default-init WKWebView, the
-    // throwaway WKWebpagePreferences assignment (a no-op in Lara's Swift
-    // source — kept for fidelity), then loadHTMLString.
-    WKWebView *webView = [[WKWebView alloc] initWithFrame:self.bounds];
-    webView.autoresizingMask = UIViewAutoresizingFlexibleWidth | UIViewAutoresizingFlexibleHeight;
-    [WKWebpagePreferences new].allowsContentJavaScript = YES;
-    [self addSubview:webView];
-    self.webView = webView;
-    [webView loadHTMLString:[self respringHTML] baseURL:nil];
+- (void)webView:(WKWebView *)webView didFailProvisionalNavigation:(WKNavigation *)navigation withError:(NSError *)error {
+    printf("[RESPRING] provisional navigation failed: %s\n", error.localizedDescription.UTF8String);
 }
 
 @end
@@ -135,7 +100,6 @@ NSString * const kSettingsSBCHideLabels = @"SBCHideLabels";
 
 NSString * const kSettingsPowercuffEnabled = @"PowercuffEnabled";
 NSString * const kSettingsPowercuffLevel   = @"PowercuffLevel";
-static NSString * const kSettingsPowercuffNominalNoticeShown = @"cyanide.powercuff.nominalDefaultNoticeShown.v1";
 
 NSString * const kSettingsDSDisableAppLibrary = @"DSDisableAppLibrary";
 NSString * const kSettingsDSDisableIconFlyIn  = @"DSDisableIconFlyIn";
@@ -143,20 +107,9 @@ NSString * const kSettingsDSZeroWakeAnimation = @"DSZeroWakeAnimation";
 NSString * const kSettingsDSZeroBacklightFade = @"DSZeroBacklightFade";
 NSString * const kSettingsDSDoubleTapToLock   = @"DSDoubleTapToLock";
 
-NSString * const kSettingsLayoutExtrasEnabled  = @"LayoutExtrasEnabled";
-NSString * const kSettingsLayoutHomeExtraLeft   = @"LayoutHomeExtraLeft";
-NSString * const kSettingsLayoutHomeExtraRight  = @"LayoutHomeExtraRight";
-NSString * const kSettingsLayoutHomeExtraTop    = @"LayoutHomeExtraTop";
-NSString * const kSettingsLayoutHomeExtraBottom = @"LayoutHomeExtraBottom";
-NSString * const kSettingsLayoutDockExtraHorizontal = @"LayoutDockExtraHorizontal";
-NSString * const kSettingsLayoutHomeScalePct    = @"LayoutHomeScalePct";
-NSString * const kSettingsLayoutDockScalePct    = @"LayoutDockScalePct";
-
 NSString * const kSettingsStatBarEnabled = @"StatBarEnabled";
 NSString * const kSettingsStatBarCelsius = @"StatBarCelsius";
-NSString * const kSettingsStatBarShowNet = @"StatBarShowNet";
-NSString * const kSettingsStatBarShowCPU = @"StatBarShowCPU";
-NSString * const kSettingsStatBarShowLabels = @"StatBarShowLabels";
+NSString * const kSettingsStatBarHideNet = @"StatBarHideNet";
 
 NSString * const kSettingsRSSIDisplayEnabled = @"RSSIDisplayEnabled";
 NSString * const kSettingsRSSIDisplayWifi    = @"RSSIDisplayWifi";
@@ -164,22 +117,27 @@ NSString * const kSettingsRSSIDisplayCell    = @"RSSIDisplayCell";
 
 NSString * const kSettingsAxonLiteEnabled = @"AxonLiteEnabled";
 
+NSString * const kSettingsSnowBoardLiteEnabled = @"SnowBoardLiteEnabled";
+
+NSString * const kSettingsAtriaLiteEnabled = @"AtriaLiteEnabled";
+NSString * const kSettingsAtriaLiteDockIcons = @"AtriaLiteDockIcons";
+NSString * const kSettingsAtriaLiteCols = @"AtriaLiteCols";
+NSString * const kSettingsAtriaLiteRows = @"AtriaLiteRows";
+NSString * const kSettingsAtriaLiteHideLabels = @"AtriaLiteHideLabels";
+NSString * const kSettingsAtriaLiteIconScale = @"AtriaLiteIconScale";
+NSString * const kSettingsAtriaLiteIconOffsetY = @"AtriaLiteIconOffsetY";
+
+NSString * const kSettingsSysColPatcherEnabled = @"SysColPatcherEnabled";
+NSString * const kSettingsDoodleLiteEnabled    = @"DoodleLiteEnabled";
+NSString * const kSettingsDoodleLiteThreshold  = @"DoodleLiteThreshold";
+NSString * const kSettingsIconShapesEnabled    = @"IconShapesLiteEnabled";
+NSString * const kSettingsCustomIconsEnabled   = @"CustomIconsLiteEnabled";
+NSString * const kSettingsIconShapesShape      = @"IconShapesLiteShape";
+NSString * const kSettingsIconShapesCornerPct  = @"IconShapesLiteCornerPct";
+NSString * const kSettingsSysColPatcherPreset  = @"SysColPatcherPreset";
+NSString * const kSettingsSysColPatcherTint    = @"SysColPatcherTint";
+
 NSString * const kSettingsTypeBannerEnabled = @"TypeBannerEnabled";
-
-NSString * const kSettingsStageStripEnabled = @"StageStripEnabled";
-
-NSString * const kSettingsThemerEnabled = @"ThemerEnabled";
-NSString * const kSettingsThemerThemeID = @"ThemerThemeID";
-NSString * const kSettingsThemerCustomThemePath = @"ThemerCustomThemePath";
-NSString * const kSettingsThemerCustomThemeName = @"ThemerCustomThemeName";
-
-// Master gate for experimental tweaks. When NO (default), packages that opt
-// into the experimental category are hidden from the Installer and the
-// Settings bundle list, and any currently-enabled experimental tweak is
-// force-disabled when this is flipped off.
-NSString * const kSettingsExperimentalTweaksEnabled = @"ExperimentalTweaksEnabled";
-
-static NSString * const kCyanideLastKnownIsPatron = @"CyanideLastKnownIsPatron";
 
 // NanoRegistry pairing-compatibility editor. Numbers are the watchOS pairing
 // compatibility versions that NRPairingCompatibilityVersionInfo reads from
@@ -215,10 +173,6 @@ static volatile int g_axonlite_live_running = 0;
 static volatile int g_axonlite_live_stop_requested = 0;
 static volatile int g_typebanner_live_running = 0;
 static volatile int g_typebanner_live_stop_requested = 0;
-static volatile int g_themer_live_running = 0;
-static volatile int g_themer_live_stop_requested = 0;
-static volatile int g_themer_repair_running = 0;
-static volatile uint64_t g_themer_repair_generation = 0;
 static volatile int g_app_in_background = 0;
 static volatile int g_screen_awake = 1;
 static volatile int g_screen_locked = 0;
@@ -231,22 +185,29 @@ static int g_springboard_blanked_notify_token = NOTIFY_TOKEN_INVALID;
 static int g_display_status_notify_token = NOTIFY_TOKEN_INVALID;
 static int g_springboard_lockstate_notify_token = NOTIFY_TOKEN_INVALID;
 static int g_springboard_finished_startup_notify_token = NOTIFY_TOKEN_INVALID;
-static int g_springboard_app_state_notify_token = NOTIFY_TOKEN_INVALID;
-static int g_springboard_frontmost_notify_token = NOTIFY_TOKEN_INVALID;
 static const NSInteger kSBCDefaultDockIcons = 4;
 static const NSInteger kSBCDefaultCols = 4;
 static const NSInteger kSBCDefaultRows = 6;
 static const BOOL kSBCDefaultHideLabels = NO;
-// Conservative seed values for the NanoRegistry editor. These represent the
-// current "newer watch" baseline without changing the legacy-watch gates.
+static const NSInteger kAtriaLiteDefaultDockIcons = 5;
+static const NSInteger kAtriaLiteDefaultCols = 5;
+static const NSInteger kAtriaLiteDefaultRows = 7;
+static const BOOL kAtriaLiteDefaultHideLabels = YES;
+static const NSInteger kAtriaLiteDefaultIconScale = 92;
+static const NSInteger kAtriaLiteDefaultIconOffsetY = 0;
+// Conservative seed values for the NanoRegistry editor. We pick the
+// permissive iOS 26 numbers as the local seed because they're a superset of
+// iOS 18 (every iOS 18 watch still validates with min=24). The user can
+// "Load Current" or just hit Apply to drop them onto the device.
 static const NSInteger kNanoDefaultMaxPairing       = 25;
 static const NSInteger kNanoDefaultMinPairing       = 24;
 static const NSInteger kNanoDefaultMinPairingChipID = 10;
 static const NSInteger kNanoDefaultMinQuickSwitch   = 6;
-// Pairing range used to let setup accept newer watchOS pairing generations
-// while still accepting generation-23 setup messages from the existing flow.
+// "Pair newer watch on this iPhone" preset. Mirror the l-playground tuple
+// that has worked on-device: raise only the upper gate and leave Apple's
+// lower gates alone so we don't accidentally alter other pairing paths.
 static const NSInteger kNanoPresetNewerMaxPairing       = 99;
-static const NSInteger kNanoPresetNewerMinPairing       = 23;
+static const NSInteger kNanoPresetNewerMinPairing       = 24;
 static const NSInteger kNanoPresetNewerMinPairingChipID = 10;
 static const NSInteger kNanoPresetNewerMinQuickSwitch   = 6;
 static const NSInteger kNanoUIRowMin = 1;
@@ -255,31 +216,21 @@ static const useconds_t kStatBarLiveIntervalUS = 1000000;
 static const useconds_t kStatBarLiveBackgroundIntervalUS = 1000000;
 static const NSUInteger kStatBarLiveMaxTicks = 43200;
 static const int64_t kLiveBackgroundTaskGraceSeconds = 10;
-static const useconds_t kRSSILiveIntervalUS = 250000;
+static const useconds_t kRSSILiveIntervalUS = 1000000;
 static const useconds_t kRSSILiveBackgroundIntervalUS = 1000000;
 static const NSUInteger kRSSILiveMaxTicks = 43200;
 static const useconds_t kAxonLiteLiveIntervalUS = 500000;
 static const useconds_t kAxonLiteLiveBackgroundIntervalUS = 1500000;
 static const NSUInteger kAxonLiteLiveMaxTicks = 43200;
-static const int kSettingsSpringBoardRCFirstExceptionTimeoutMS = 3000;
-// TypeBanner polls imagent for typing indicators with original-thread-only
-// RemoteCall probes and opens SpringBoard only when the banner state changes.
-static const useconds_t kTypeBannerLiveIntervalUS = 1000000;
-static const useconds_t kTypeBannerLiveBackgroundIntervalUS = 1000000;
-static const useconds_t kTypeBannerInitialDaemonSettleUS = 250000;
+// TypeBanner polls MobileSMS for typing indicators (limited to when Messages
+// is running) and then updates a banner window in SpringBoard. Each tick
+// alternates between two RemoteCall sessions, so it is heavier than the
+// single-session live loops above and runs at a slower cadence.
+static const useconds_t kTypeBannerLiveIntervalUS = 1500000;
+static const useconds_t kTypeBannerLiveBackgroundIntervalUS = 3000000;
 static const NSUInteger kTypeBannerLiveMaxTicks = 28800;
-// Only Clock/Calendar need periodic repair; normal icons persist through the
-// model graft and should not be repainted during SpringBoard animations.
-static const useconds_t kThemerLiveIntervalUS = 2000000;
-static const useconds_t kThemerLiveBackgroundIntervalUS = 10000000;
-static const NSUInteger kThemerLiveMaxTicks = 86400;
-static const NSUInteger kThemerLegacyLiveMaxTicks = 1;
-static const useconds_t kThemerRepairInitialDelayUS = 900000;
-static const useconds_t kThemerRepairIntervalUS = 450000;
 static NSString * const kSettingsRemoteCallStateDidChangeNotification = @"SettingsRemoteCallStateDidChangeNotification";
 NSString * const kSettingsActionsDidCompleteNotification = @"SettingsActionsDidCompleteNotification";
-NSString * const kSettingsActionsDidCompleteSuccessKey = @"success";
-NSString * const kSettingsActionsDidCompleteMessageKey = @"message";
 static NSString * const kSettingsCleanupStateDidChangeNotification = @"SettingsCleanupStateDidChangeNotification";
 
 static void settings_notify_cleanup_state_changed(void)
@@ -349,6 +300,8 @@ static NSArray<NSString *> *settings_rc_backed_tweak_keys(void)
             kSettingsStatBarEnabled,
             kSettingsRSSIDisplayEnabled,
             kSettingsAxonLiteEnabled,
+            kSettingsSnowBoardLiteEnabled,
+            kSettingsAtriaLiteEnabled,
             kSettingsTypeBannerEnabled,
             kSettingsPowercuffEnabled,
             kSettingsDSDisableAppLibrary,
@@ -356,9 +309,6 @@ static NSArray<NSString *> *settings_rc_backed_tweak_keys(void)
             kSettingsDSZeroWakeAnimation,
             kSettingsDSZeroBacklightFade,
             kSettingsDSDoubleTapToLock,
-            kSettingsLayoutExtrasEnabled,
-            kSettingsThemerEnabled,
-            kSettingsStageStripEnabled,
         ];
     });
     return keys;
@@ -408,9 +358,6 @@ static void settings_apply_statbar_once_async(const char *reason);
 static void settings_apply_rssi_once_async(const char *reason);
 static void settings_start_rssi_live_loop(void);
 static void settings_start_typebanner_live_loop(void);
-static void settings_start_themer_live_loop(void);
-static void settings_schedule_themer_repair_burst(const char *reason);
-static void settings_schedule_themer_quiet_repair_burst(const char *reason);
 static void settings_notify_remote_call_state_changed(void);
 static void settings_request_all_live_loops_stop(const char *reason);
 
@@ -444,9 +391,7 @@ static NSUInteger settings_live_failure_limit(NSUInteger foregroundLimit)
 
 static BOOL settings_rssi_install_allowed(void)
 {
-    if (!cyanide_is_patron()) return NO;
-    return [[NSUserDefaults standardUserDefaults]
-            boolForKey:kSettingsExperimentalTweaksEnabled];
+    return NO;
 }
 
 static BOOL settings_read_screen_awake(void)
@@ -545,20 +490,6 @@ static const char *settings_axonlite_pause_reason(void)
     return "screen unavailable";
 }
 
-static BOOL settings_typebanner_can_poll_messages(void)
-{
-    (void)settings_refresh_screen_awake_state(NULL);
-    (void)settings_refresh_screen_lock_state(NULL);
-    return settings_screen_awake_cached() && !settings_screen_locked_cached();
-}
-
-static const char *settings_typebanner_pause_reason(void)
-{
-    if (!settings_screen_awake_cached()) return "screen asleep";
-    if (settings_screen_locked_cached()) return "device locked";
-    return "screen unavailable";
-}
-
 static void settings_stop_axonlite_then_forget_locked(const char *reason)
 {
     if (g_springboard_rc_ready) {
@@ -567,62 +498,6 @@ static void settings_stop_axonlite_then_forget_locked(const char *reason)
                reason ? ": " : "", reason ?: "", stopped);
     }
     axonlite_forget_remote_state();
-}
-
-static void settings_forget_springboard_tweak_state_locked(void)
-{
-    statbar_forget_remote_state();
-    rssidisplay_forget_remote_state();
-    axonlite_forget_remote_state();
-    typebanner_forget_remote_state();
-    killallapps_forget_remote_state();
-    stagestrip_forget_remote_state();
-    themer_forget_remote_state();
-}
-
-static void settings_stop_springboard_tweaks_locked(const char *reason,
-                                                    BOOL springboardWillDie)
-{
-    if (!g_springboard_rc_ready) {
-        settings_forget_springboard_tweak_state_locked();
-        return;
-    }
-
-    @try {
-        bool tbKeepAlive = typebanner_release_mobilesms_keepalive_in_springboard_session();
-        bool tbHidden = typebanner_hide_in_springboard_session();
-        printf("[SETTINGS] %s TypeBanner cleanup keepAlive=%d hide=%d\n",
-               reason ?: "SpringBoard cleanup", tbKeepAlive, tbHidden);
-    } @catch (NSException *e) {
-        printf("[SETTINGS] %s TypeBanner cleanup exception: %s\n",
-               reason ?: "SpringBoard cleanup", e.reason.UTF8String);
-    }
-
-    bool axonStopped = springboardWillDie
-        ? axonlite_stop_in_session_fast()
-        : axonlite_stop_in_session();
-    printf("[SETTINGS] %s Axon Lite stop%s result=%d\n",
-           reason ?: "SpringBoard cleanup",
-           springboardWillDie ? " (fast)" : "",
-           axonStopped);
-
-    bool statStopped = statbar_stop_in_session();
-    printf("[SETTINGS] %s StatBar stop result=%d\n",
-           reason ?: "SpringBoard cleanup", statStopped);
-
-    bool rssiStopped = rssidisplay_stop_in_session();
-    printf("[SETTINGS] %s RSSI stop result=%d\n",
-           reason ?: "SpringBoard cleanup", rssiStopped);
-
-    bool themeStopped = themer_stop_in_session();
-    printf("[SETTINGS] %s Themer stop result=%d\n",
-           reason ?: "SpringBoard cleanup", themeStopped);
-
-    bool stageStopped = stagestrip_stop_in_session();
-    printf("[SETTINGS] %s Stage Strip stop result=%d\n",
-           reason ?: "SpringBoard cleanup", stageStopped);
-
-    settings_forget_springboard_tweak_state_locked();
 }
 
 static void settings_handle_springboard_restart(void)
@@ -641,7 +516,16 @@ static void settings_handle_springboard_restart(void)
             g_springboard_rc_ready = 0;
             g_springboard_sandbox_escaped = 0;
 
-            settings_forget_springboard_tweak_state_locked();
+            statbar_forget_remote_state();
+            rssidisplay_forget_remote_state();
+            axonlite_forget_remote_state();
+            snowboardlite_forget_remote_state();
+            atrialite_forget_remote_state();
+            typebanner_forget_remote_state();
+            syscolpatcher_forget_remote_state();
+            doodlelite_forget_remote_state();
+            iconshapeslite_forget_remote_state();
+            customiconslite_forget_remote_state();
             if (hadSession) {
                 abandon_remote_call();
             }
@@ -665,7 +549,6 @@ static void settings_install_screen_awake_observers(void)
             (void)token;
             if (settings_refresh_screen_awake_state("springboard.hasBlankedScreen")) {
                 settings_apply_statbar_once_async("screen awake");
-                settings_schedule_themer_quiet_repair_burst("screen awake");
             }
         });
         if (status != NOTIFY_STATUS_OK) {
@@ -678,7 +561,6 @@ static void settings_install_screen_awake_observers(void)
             (void)token;
             if (settings_refresh_screen_awake_state("iokit.displayStatus")) {
                 settings_apply_statbar_once_async("screen awake");
-                settings_schedule_themer_quiet_repair_burst("display awake");
             }
         });
         if (status != NOTIFY_STATUS_OK) {
@@ -709,32 +591,6 @@ static void settings_install_screen_awake_observers(void)
             g_springboard_finished_startup_notify_token = NOTIFY_TOKEN_INVALID;
         }
 
-        status = notify_register_dispatch("com.apple.springboard.applicationStateChanged",
-                                          &g_springboard_app_state_notify_token,
-                                          dispatch_get_main_queue(), ^(int token) {
-            uint64_t state = 0;
-            (void)notify_get_state(token, &state);
-            printf("[SETTINGS] springboard application state notify state=%llu\n",
-                   (unsigned long long)state);
-            settings_schedule_themer_repair_burst("springboard app state changed");
-        });
-        if (status != NOTIFY_STATUS_OK) {
-            g_springboard_app_state_notify_token = NOTIFY_TOKEN_INVALID;
-        }
-
-        status = notify_register_dispatch("com.apple.springboard.frontmostApplicationChanged",
-                                          &g_springboard_frontmost_notify_token,
-                                          dispatch_get_main_queue(), ^(int token) {
-            uint64_t state = 0;
-            (void)notify_get_state(token, &state);
-            printf("[SETTINGS] springboard frontmost app notify state=%llu\n",
-                   (unsigned long long)state);
-            settings_schedule_themer_repair_burst("springboard frontmost changed");
-        });
-        if (status != NOTIFY_STATUS_OK) {
-            g_springboard_frontmost_notify_token = NOTIFY_TOKEN_INVALID;
-        }
-
         // If the live loop tripped its 3-failure exit during a background
         // window, the screen-wake darwin notifications won't fire (the screen
         // never blanked) and the loop stays dead. Re-arm on app foreground.
@@ -745,7 +601,6 @@ static void settings_install_screen_awake_observers(void)
             (void)note;
             (void)settings_refresh_screen_awake_state("app became active");
             settings_apply_statbar_once_async("app became active");
-            settings_schedule_themer_quiet_repair_burst("app became active");
         }];
 
         (void)settings_refresh_screen_awake_state("startup");
@@ -846,8 +701,7 @@ static void settings_notify_remote_call_state_changed(void)
 
 static BOOL settings_cleanup_in_progress(void)
 {
-    return g_settings_cleanup_running != 0 ||
-           g_settings_respring_cleanup_running != 0;
+    return g_settings_cleanup_running != 0;
 }
 
 static void settings_request_all_live_loops_stop(const char *reason)
@@ -856,45 +710,9 @@ static void settings_request_all_live_loops_stop(const char *reason)
     g_rssi_live_stop_requested = 1;
     g_axonlite_live_stop_requested = 1;
     g_typebanner_live_stop_requested = 1;
-    g_themer_live_stop_requested = 1;
-    stagestrip_stop_control_loop();
     if (reason) {
         printf("[SETTINGS] requested all live RemoteCall loops stop: %s\n", reason);
     }
-}
-
-static BOOL settings_has_active_termination_live_tweak(void)
-{
-    if (g_statbar_live_running || g_rssi_live_running ||
-        g_axonlite_live_running || g_typebanner_live_running) {
-        return YES;
-    }
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    return ([d boolForKey:kSettingsStatBarEnabled] &&
-            settings_tweak_is_applied(kSettingsStatBarEnabled)) ||
-           ([d boolForKey:kSettingsRSSIDisplayEnabled] &&
-            settings_tweak_is_applied(kSettingsRSSIDisplayEnabled)) ||
-           ([d boolForKey:kSettingsAxonLiteEnabled] &&
-            settings_tweak_is_applied(kSettingsAxonLiteEnabled)) ||
-           ([d boolForKey:kSettingsTypeBannerEnabled] &&
-            settings_tweak_is_applied(kSettingsTypeBannerEnabled)) ||
-           ([d boolForKey:kSettingsStageStripEnabled] &&
-            settings_tweak_is_applied(kSettingsStageStripEnabled));
-}
-
-static BOOL settings_has_persistent_springboard_remote_call_user(void)
-{
-    if (settings_has_active_termination_live_tweak() ||
-        g_themer_live_running || g_themer_repair_running) {
-        return YES;
-    }
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    return ([d boolForKey:kSettingsThemerEnabled] &&
-            settings_tweak_is_applied(kSettingsThemerEnabled)) ||
-           ([d boolForKey:kSettingsStageStripEnabled] &&
-            settings_tweak_is_applied(kSettingsStageStripEnabled));
 }
 
 static void settings_wait_live_loops_stopped_for_switch(const char *reason)
@@ -902,8 +720,7 @@ static void settings_wait_live_loops_stopped_for_switch(const char *reason)
     uint64_t startUS = settings_now_us();
     BOOL logged = NO;
     while (g_statbar_live_running || g_rssi_live_running ||
-           g_axonlite_live_running || g_typebanner_live_running ||
-           g_themer_live_running || g_themer_repair_running) {
+           g_axonlite_live_running || g_typebanner_live_running) {
         uint64_t nowUS = settings_now_us();
         uint64_t elapsedUS = (startUS != 0 && nowUS >= startUS) ? nowUS - startUS : 0;
         if (!logged) {
@@ -912,18 +729,16 @@ static void settings_wait_live_loops_stopped_for_switch(const char *reason)
             logged = YES;
         }
         if (elapsedUS >= 2000000ULL) {
-            printf("[SETTINGS] live loop stop wait timed out%s%s stat=%d rssi=%d axon=%d type=%d themer=%d\n",
+            printf("[SETTINGS] live loop stop wait timed out%s%s stat=%d rssi=%d axon=%d type=%d\n",
                    reason ? ": " : "", reason ?: "",
                    g_statbar_live_running, g_rssi_live_running,
-                   g_axonlite_live_running, g_typebanner_live_running,
-                   g_themer_live_running || g_themer_repair_running);
+                   g_axonlite_live_running, g_typebanner_live_running);
             break;
         }
         usleep(50000);
     }
     if (logged && !g_statbar_live_running && !g_rssi_live_running &&
-        !g_axonlite_live_running && !g_typebanner_live_running &&
-        !g_themer_live_running && !g_themer_repair_running) {
+        !g_axonlite_live_running && !g_typebanner_live_running) {
         printf("[SETTINGS] live RemoteCall loops stopped%s%s\n",
                reason ? ": " : "", reason ?: "");
     }
@@ -991,28 +806,6 @@ static UIViewController *settings_active_presenter(UIViewController *fallback)
     return settings_top_view_controller(candidate.rootViewController ?: fallback);
 }
 
-static UIWindow *settings_active_window(UIViewController *fallback)
-{
-    if (fallback.view.window) return fallback.view.window;
-
-    UIWindow *candidate = nil;
-    for (UIScene *scene in UIApplication.sharedApplication.connectedScenes) {
-        if (![scene isKindOfClass:UIWindowScene.class]) continue;
-        UIWindowScene *ws = (UIWindowScene *)scene;
-        if (ws.activationState != UISceneActivationStateForegroundActive &&
-            ws.activationState != UISceneActivationStateForegroundInactive) {
-            continue;
-        }
-        for (UIWindow *window in ws.windows) {
-            if (window.isKeyWindow) return window;
-            if (!candidate && !window.hidden && window.rootViewController) {
-                candidate = window;
-            }
-        }
-    }
-    return candidate;
-}
-
 static void settings_present_controller(UIViewController *controller, UIViewController *fallback)
 {
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -1022,20 +815,6 @@ static void settings_present_controller(UIViewController *controller, UIViewCont
             return;
         }
         [presenter presentViewController:controller animated:YES completion:nil];
-    });
-}
-
-static void settings_show_respring_overlay(UIViewController *fallback)
-{
-    dispatch_async(dispatch_get_main_queue(), ^{
-        UIWindow *window = settings_active_window(fallback);
-        if (!window) {
-            printf("[RESPRING] overlay skipped: no active window\n");
-            return;
-        }
-        DSRespringOverlayView *overlay = [[DSRespringOverlayView alloc] initWithFrame:window.bounds];
-        [window addSubview:overlay];
-        [overlay loadRespringPayload];
     });
 }
 
@@ -1195,9 +974,7 @@ static BOOL settings_ensure_springboard_remote_call_locked(void)
     }
 
     printf("[SETTINGS] initializing SpringBoard RemoteCall session\n");
-    if (init_remote_call_with_first_exception_timeout("SpringBoard",
-                                                      false,
-                                                      kSettingsSpringBoardRCFirstExceptionTimeoutMS) != 0) {
+    if (init_remote_call("SpringBoard", false) != 0) {
         printf("[SETTINGS] init_remote_call(SpringBoard) failed\n");
         return NO;
     }
@@ -1236,9 +1013,19 @@ static void settings_prepare_for_respring_sync(void)
 
     @synchronized (settings_rc_lock()) {
         if (g_springboard_rc_ready) {
-            // SB is about to be killed by the respring, so cleanup uses the
-            // fast variant for tweaks where full remote restoration is wasted.
-            settings_stop_springboard_tweaks_locked("pre-respring cleanup", YES);
+            // SB is about to be killed by the respring — skip the
+            // restore/release loops since they're all wasted RC traffic.
+            bool axonStopped = axonlite_stop_in_session_fast();
+            printf("[SETTINGS] pre-respring Axon Lite stop (fast) result=%d\n", axonStopped);
+            bool snowStopped = snowboardlite_stop_in_session();
+            printf("[SETTINGS] pre-respring SnowBoard Lite stop result=%d\n", snowStopped);
+            bool atriaStopped = atrialite_stop_in_session();
+            printf("[SETTINGS] pre-respring Atria Lite stop result=%d\n", atriaStopped);
+            syscolpatcher_reset();
+            bool stopped = statbar_stop_in_session();
+            printf("[SETTINGS] pre-respring StatBar stop result=%d\n", stopped);
+            bool rssiStopped = rssidisplay_stop_in_session();
+            printf("[SETTINGS] pre-respring RSSI stop result=%d\n", rssiStopped);
             settings_destroy_springboard_remote_call_locked("pre-respring cleanup");
         }
     }
@@ -1269,10 +1056,18 @@ static void settings_terminal_kexploit_cleanup_sync_internal(const char *reason)
 
     @synchronized (settings_rc_lock()) {
         if (g_springboard_rc_ready) {
-            settings_stop_springboard_tweaks_locked("terminal cleanup", NO);
+            bool axonStopped = axonlite_stop_in_session();
+            printf("[SETTINGS] terminal cleanup Axon Lite stop result=%d\n", axonStopped);
+            bool snowStopped = snowboardlite_stop_in_session();
+            printf("[SETTINGS] terminal cleanup SnowBoard Lite stop result=%d\n", snowStopped);
+            bool atriaStopped = atrialite_stop_in_session();
+            printf("[SETTINGS] terminal cleanup Atria Lite stop result=%d\n", atriaStopped);
+            syscolpatcher_reset();
+            bool stopped = statbar_stop_in_session();
+            printf("[SETTINGS] terminal cleanup StatBar stop result=%d\n", stopped);
+            bool rssiStopped = rssidisplay_stop_in_session();
+            printf("[SETTINGS] terminal cleanup RSSI stop result=%d\n", rssiStopped);
             settings_destroy_springboard_remote_call_locked(reason ?: "terminal KRW cleanup");
-        } else {
-            settings_forget_springboard_tweak_state_locked();
         }
     }
 
@@ -1370,12 +1165,6 @@ void settings_best_effort_termination_cleanup(const char *reason)
     log_user("[CLEANUP] App termination requested (%s); attempting last-chance cleanup.\n", why);
     printf("[SETTINGS] best-effort termination cleanup requested: %s\n", why);
 
-    if (!settings_has_active_termination_live_tweak()) {
-        printf("[SETTINGS] termination cleanup skipped: no live tweaks active\n");
-        log_user("[CLEANUP] No live tweaks are active; skipping termination cleanup.\n");
-        return;
-    }
-
     settings_request_all_live_loops_stop("termination cleanup");
 
     BOOL locked = settings_acquire_actions_lock_wait("termination cleanup", 1500000);
@@ -1398,7 +1187,10 @@ void settings_destroy_springboard_remote_call_sync(void)
     settings_wait_live_loops_stopped_for_switch("remote call sync cleanup");
     @synchronized (settings_rc_lock()) {
         if (g_springboard_rc_ready) {
-            settings_stop_springboard_tweaks_locked("remote call sync cleanup", NO);
+            axonlite_stop_in_session();
+            snowboardlite_stop_in_session();
+            atrialite_stop_in_session();
+            rssidisplay_stop_in_session();
         }
         settings_destroy_springboard_remote_call_locked("manual/sync cleanup");
     }
@@ -1414,7 +1206,10 @@ void settings_destroy_springboard_remote_call(void)
         @synchronized (settings_rc_lock()) {
             BOOL hadSession = g_springboard_rc_ready != 0;
             if (g_springboard_rc_ready) {
-                settings_stop_springboard_tweaks_locked("remote call cleanup", NO);
+                axonlite_stop_in_session();
+                snowboardlite_stop_in_session();
+                atrialite_stop_in_session();
+                rssidisplay_stop_in_session();
             }
             settings_destroy_springboard_remote_call_locked("manual cleanup");
             log_user(hadSession ? "[OK] SpringBoard session disconnected.\n" :
@@ -1431,6 +1226,18 @@ static bool settings_apply_sbc_from_defaults_locked(NSUserDefaults *d)
                                          (int)[d integerForKey:kSettingsSBCCols],
                                          (int)[d integerForKey:kSettingsSBCRows],
                                          [d boolForKey:kSettingsSBCHideLabels]);
+}
+
+static bool settings_apply_atrialite_from_defaults_locked(NSUserDefaults *d)
+{
+    if (![d boolForKey:kSettingsAtriaLiteEnabled]) return false;
+
+    return atrialite_apply_in_session((int)[d integerForKey:kSettingsAtriaLiteDockIcons],
+                                      (int)[d integerForKey:kSettingsAtriaLiteCols],
+                                      (int)[d integerForKey:kSettingsAtriaLiteRows],
+                                      [d boolForKey:kSettingsAtriaLiteHideLabels],
+                                      (int)[d integerForKey:kSettingsAtriaLiteIconScale],
+                                      (int)[d integerForKey:kSettingsAtriaLiteIconOffsetY]);
 }
 
 static BOOL settings_dark_tweaks_any_enabled(NSUserDefaults *d)
@@ -1451,165 +1258,6 @@ static bool settings_apply_dark_tweaks_from_defaults_locked(NSUserDefaults *d)
                                              [d boolForKey:kSettingsDSZeroWakeAnimation],
                                              [d boolForKey:kSettingsDSZeroBacklightFade],
                                              [d boolForKey:kSettingsDSDoubleTapToLock]);
-}
-
-static bool settings_apply_layout_extras_from_defaults_locked(NSUserDefaults *d)
-{
-    if (![d boolForKey:kSettingsLayoutExtrasEnabled]) return false;
-    double exL  = (double)[d integerForKey:kSettingsLayoutHomeExtraLeft];
-    double exR  = (double)[d integerForKey:kSettingsLayoutHomeExtraRight];
-    double exT  = (double)[d integerForKey:kSettingsLayoutHomeExtraTop];
-    double exB  = (double)[d integerForKey:kSettingsLayoutHomeExtraBottom];
-    double dockExH = (double)[d integerForKey:kSettingsLayoutDockExtraHorizontal];
-    NSInteger hsPct = [d integerForKey:kSettingsLayoutHomeScalePct];
-    NSInteger dkPct = [d integerForKey:kSettingsLayoutDockScalePct];
-    double homeScale = (hsPct > 0) ? (double)hsPct / 100.0 : 1.0;
-    double dockScale = (dkPct > 0) ? (double)dkPct / 100.0 : 1.0;
-    return darksword_layout_apply_in_session(exL, exR, exT, exB, dockExH, homeScale, dockScale);
-}
-
-static NSString * const kThemerThemeNone = @"";
-static NSString * const kThemerThemeBuiltinIOS6 = @"builtin-ios6";
-static NSString * const kThemerThemeCustom = @"custom";
-
-static NSString *settings_themer_builtin_ios6_path(void)
-{
-    return [[NSBundle mainBundle].bundlePath
-        stringByAppendingPathComponent:@"Themes-iOS6.plist"];
-}
-
-static NSString *settings_themer_documents_theme_root(void)
-{
-    NSArray<NSString *> *docs = NSSearchPathForDirectoriesInDomains(
-        NSDocumentDirectory, NSUserDomainMask, YES);
-    if (docs.count == 0) return nil;
-    return [docs.firstObject stringByAppendingPathComponent:@"Themes"];
-}
-
-static NSString *settings_themer_imported_theme_dir(void)
-{
-    NSString *root = settings_themer_documents_theme_root();
-    return root ? [root stringByAppendingPathComponent:@"Imported"] : nil;
-}
-
-static NSString *settings_themer_imported_plist_path(void)
-{
-    NSString *root = settings_themer_documents_theme_root();
-    return root ? [root stringByAppendingPathComponent:@"Imported.plist"] : nil;
-}
-
-static NSString *settings_themer_selected_theme_id(void)
-{
-    return [[NSUserDefaults standardUserDefaults] stringForKey:kSettingsThemerThemeID] ?: kThemerThemeNone;
-}
-
-BOOL settings_themer_has_selected_theme(void)
-{
-    NSString *theme = settings_themer_selected_theme_id();
-    if ([theme isEqualToString:kThemerThemeBuiltinIOS6]) {
-        return [[NSFileManager defaultManager] fileExistsAtPath:settings_themer_builtin_ios6_path()];
-    }
-    if ([theme isEqualToString:kThemerThemeCustom]) {
-        NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-        NSString *path = [d stringForKey:kSettingsThemerCustomThemePath];
-        BOOL isDir = NO;
-        return path.length > 0 &&
-               [[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir];
-    }
-    return NO;
-}
-
-NSString *settings_themer_selected_theme_display_name(void)
-{
-    NSString *theme = settings_themer_selected_theme_id();
-    if ([theme isEqualToString:kThemerThemeBuiltinIOS6]) return @"iOS 6 Theme";
-    if ([theme isEqualToString:kThemerThemeCustom]) {
-        NSString *name = [[NSUserDefaults standardUserDefaults]
-            stringForKey:kSettingsThemerCustomThemeName];
-        return name.length > 0 ? name : @"Imported Theme";
-    }
-    return @"None";
-}
-
-static NSDictionary<NSString *, NSData *> *settings_themer_load_plist_theme(NSString *plistPath)
-{
-    NSError *err = nil;
-    NSData *raw = [NSData dataWithContentsOfFile:plistPath options:0 error:&err];
-    if (!raw) {
-        printf("[THEMER] resolve: failed to read plist err=%s\n",
-               err.localizedDescription.UTF8String ?: "?");
-        return nil;
-    }
-    id parsed = [NSPropertyListSerialization
-        propertyListWithData:raw
-                     options:NSPropertyListImmutable
-                      format:NULL
-                       error:&err];
-    if (![parsed isKindOfClass:[NSDictionary class]]) {
-        printf("[THEMER] resolve: plist parse failed err=%s\n",
-               err.localizedDescription.UTF8String ?: "?");
-        return nil;
-    }
-    NSDictionary *dict = (NSDictionary *)parsed;
-    NSMutableDictionary<NSString *, NSData *> *out = [NSMutableDictionary dictionary];
-    for (id key in dict) {
-        id value = dict[key];
-        if (![key isKindOfClass:NSString.class] ||
-            ![value isKindOfClass:NSData.class] ||
-            [(NSData *)value length] == 0) {
-            continue;
-        }
-        out[key] = value;
-    }
-    printf("[THEMER] resolve: loaded plist theme entries=%lu size=%lu path=%s\n",
-           (unsigned long)out.count,
-           (unsigned long)raw.length,
-           plistPath.UTF8String);
-    return out;
-}
-
-// Per-bundle icon swap. A theme must be selected explicitly: either the bundled
-// iOS 6 plist, or an imported folder/plist in Documents/Themes/.
-static bool settings_apply_themer_from_defaults_locked(NSUserDefaults *d)
-{
-    if (![d boolForKey:kSettingsThemerEnabled]) {
-        printf("[THEMER] resolve: toggle off, skipping\n");
-        return false;
-    }
-
-    NSString *theme = settings_themer_selected_theme_id();
-    if (![theme isEqualToString:kThemerThemeBuiltinIOS6] &&
-        ![theme isEqualToString:kThemerThemeCustom]) {
-        printf("[THEMER] resolve: no selected theme; install/apply blocked\n");
-        log_user("[THEMER] Pick a theme in Settings > Cyanide Themer before running.\n");
-        return false;
-    }
-
-    if ([theme isEqualToString:kThemerThemeBuiltinIOS6]) {
-        NSString *plistPath = settings_themer_builtin_ios6_path();
-        if (![[NSFileManager defaultManager] fileExistsAtPath:plistPath]) {
-            printf("[THEMER] resolve: bundled plist missing at %s\n",
-                   plistPath.UTF8String);
-            return false;
-        }
-        NSDictionary *dict = settings_themer_load_plist_theme(plistPath);
-        return dict.count > 0 ? themer_apply_data_in_session(dict) : false;
-    }
-
-    NSString *path = [d stringForKey:kSettingsThemerCustomThemePath];
-    BOOL isDir = NO;
-    if (path.length == 0 ||
-        ![[NSFileManager defaultManager] fileExistsAtPath:path isDirectory:&isDir]) {
-        printf("[THEMER] resolve: selected custom theme missing path=%s\n",
-               path.UTF8String ?: "");
-        return false;
-    }
-    if (isDir) {
-        printf("[THEMER] resolve: using imported folder %s\n", path.UTF8String);
-        return themer_apply_in_session(path.fileSystemRepresentation);
-    }
-    NSDictionary *dict = settings_themer_load_plist_theme(path);
-    return dict.count > 0 ? themer_apply_data_in_session(dict) : false;
 }
 
 static void settings_reset_sbc_defaults(void)
@@ -1643,6 +1291,48 @@ static void settings_reset_sbc_defaults(void)
             settings_mark_tweak_applied(kSettingsSBCEnabled,
                                         ok && [d boolForKey:kSettingsSBCEnabled]);
             printf("[SETTINGS] SBC reset apply result=%d\n", ok);
+        }
+        settings_notify_package_queue_changed_async();
+    });
+}
+
+static void settings_reset_atrialite_defaults(void)
+{
+    if (!settings_device_supported()) {
+        printf("[SETTINGS] Atria Lite reset blocked: %s\n", settings_unsupported_message().UTF8String);
+        return;
+    }
+
+    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
+    [d setBool:YES forKey:kSettingsAtriaLiteEnabled];
+    [d setInteger:kAtriaLiteDefaultDockIcons forKey:kSettingsAtriaLiteDockIcons];
+    [d setInteger:kAtriaLiteDefaultCols forKey:kSettingsAtriaLiteCols];
+    [d setInteger:kAtriaLiteDefaultRows forKey:kSettingsAtriaLiteRows];
+    [d setBool:kAtriaLiteDefaultHideLabels forKey:kSettingsAtriaLiteHideLabels];
+    [d setInteger:kAtriaLiteDefaultIconScale forKey:kSettingsAtriaLiteIconScale];
+    [d setInteger:kAtriaLiteDefaultIconOffsetY forKey:kSettingsAtriaLiteIconOffsetY];
+    [d synchronize];
+
+    printf("[SETTINGS] Atria Lite reset defaults dock=%ld home=%ldx%ld hideLabels=%d scale=%ld offsetY=%ld rcReady=%d\n",
+           (long)kAtriaLiteDefaultDockIcons,
+           (long)kAtriaLiteDefaultCols,
+           (long)kAtriaLiteDefaultRows,
+           kAtriaLiteDefaultHideLabels,
+           (long)kAtriaLiteDefaultIconScale,
+           (long)kAtriaLiteDefaultIconOffsetY,
+           g_springboard_rc_ready);
+
+    settings_mark_tweak_applied(kSettingsAtriaLiteEnabled, NO);
+    settings_notify_package_queue_changed_async();
+
+    if (!g_springboard_rc_ready) return;
+    dispatch_async(dispatch_get_global_queue(0, 0), ^{
+        @synchronized (settings_rc_lock()) {
+            if (!g_springboard_rc_ready) return;
+            bool ok = settings_apply_atrialite_from_defaults_locked(d);
+            settings_mark_tweak_applied(kSettingsAtriaLiteEnabled,
+                                        ok && [d boolForKey:kSettingsAtriaLiteEnabled]);
+            printf("[SETTINGS] Atria Lite reset apply result=%d\n", ok);
         }
         settings_notify_package_queue_changed_async();
     });
@@ -1931,9 +1621,7 @@ static void settings_start_statbar_live_loop(void)
                         break;
                     }
                     ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                  [d boolForKey:kSettingsStatBarShowNet],
-                                                  [d boolForKey:kSettingsStatBarShowCPU],
-                                                  [d boolForKey:kSettingsStatBarShowLabels]);
+                                                  [d boolForKey:kSettingsStatBarHideNet]);
                 }
 
                 if (tick == 0) {
@@ -2030,9 +1718,7 @@ static void settings_apply_statbar_once_async(const char *reason)
                 ![d boolForKey:kSettingsStatBarEnabled] ||
                 !g_springboard_rc_ready) return;
             ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                          [d boolForKey:kSettingsStatBarShowNet],
-                                          [d boolForKey:kSettingsStatBarShowCPU],
-                                          [d boolForKey:kSettingsStatBarShowLabels]);
+                                          [d boolForKey:kSettingsStatBarHideNet]);
         }
         // Only log lifecycle applies that change result; a clean success on
         // every foreground/background flip is noise.
@@ -2379,9 +2065,6 @@ static void settings_start_typebanner_live_loop(void)
     dispatch_async(dispatch_get_global_queue(0, 0), ^{
         NSUInteger tick = 0;
         NSUInteger failures = 0;
-        BOOL deferredLogged = NO;
-        BOOL pausedForMessages = NO;
-        RemoteCallSession *mobileSession = nil;
 
         printf("[SETTINGS] TypeBanner live loop started interval=%uus background=%uus max=%lu\n",
                kTypeBannerLiveIntervalUS,
@@ -2389,6 +2072,14 @@ static void settings_start_typebanner_live_loop(void)
                (unsigned long)kTypeBannerLiveMaxTicks);
 
         @try {
+            // Initial sleep so we don't fight the Apply Tweaks teardown of
+            // the shared SpringBoard session in the same instant we'd want to
+            // grab a session of our own.
+            settings_live_loop_sleep_interruptible(0,
+                                                   settings_live_interval(kTypeBannerLiveIntervalUS,
+                                                                          kTypeBannerLiveBackgroundIntervalUS),
+                                                   &g_typebanner_live_stop_requested);
+
             while ([d boolForKey:kSettingsTypeBannerEnabled] &&
                    !settings_cleanup_in_progress() &&
                    !g_typebanner_live_stop_requested &&
@@ -2398,56 +2089,12 @@ static void settings_start_typebanner_live_loop(void)
                 uint64_t tickStartUS = settings_now_us();
                 bool ok = false;
 
-                if (!g_kexploit_done || g_settings_actions_running) {
-                    if (!deferredLogged) {
-                        printf("[SETTINGS] TypeBanner tick deferred krw=%d actions=%d\n",
-                               g_kexploit_done, g_settings_actions_running);
-                        deferredLogged = YES;
-                    }
-                    settings_live_loop_sleep_interruptible(0,
-                                                           intervalUS,
-                                                           &g_typebanner_live_stop_requested);
-                    continue;
-                }
-                deferredLogged = NO;
-
-                if (!settings_typebanner_can_poll_messages()) {
-                    if (!pausedForMessages) {
-                        pausedForMessages = YES;
-                        printf("[SETTINGS] TypeBanner paused while %s\n",
-                               settings_typebanner_pause_reason());
-                    }
-                    if (mobileSession) {
-                        @synchronized (settings_rc_lock()) {
-                            [mobileSession abandonRemoteCall];
-                            mobileSession = nil;
-                        }
-                    }
-                    settings_live_loop_sleep_interruptible(0,
-                                                           intervalUS,
-                                                           &g_typebanner_live_stop_requested);
-                    continue;
-                }
-                if (pausedForMessages) {
-                    pausedForMessages = NO;
-                    printf("[SETTINGS] TypeBanner resumed after screen unlock/wake\n");
-                }
-
-                // TypeBanner now uses imagent original-thread probes for
-                // detection. The MobileSMS session pointer is kept only for
-                // fallback builds where that path is re-enabled.
+                // TypeBanner manages its own MobileSMS + SpringBoard sessions
+                // inside typebanner_run_once(). We don't take the shared
+                // SpringBoard RC lock — the lock is for tweaks that share the
+                // long-lived SpringBoard session held during Apply Tweaks.
                 @try {
-                    @synchronized (settings_rc_lock()) {
-                        if (!g_typebanner_live_stop_requested &&
-                            !g_settings_actions_running &&
-                            g_kexploit_done &&
-                            settings_typebanner_can_poll_messages()) {
-                            ok = typebanner_run_once_with_mobile_session_and_current_springboard(&mobileSession,
-                                                                                                 g_springboard_rc_ready != 0);
-                        } else {
-                            ok = true;
-                        }
-                    }
+                    ok = typebanner_run_once();
                 } @catch (NSException *e) {
                     printf("[SETTINGS] TypeBanner tick exception: %s\n", e.reason.UTF8String);
                     ok = false;
@@ -2468,48 +2115,27 @@ static void settings_start_typebanner_live_loop(void)
                     g_typebanner_live_stop_requested ||
                     tick >= kTypeBannerLiveMaxTicks) break;
 
+                settings_live_loop_sleep_interruptible(0,
+                                                       intervalUS,
+                                                       &g_typebanner_live_stop_requested);
+
                 uint64_t nowUS = settings_now_us();
                 uint64_t elapsedUS = tickStartUS != 0 && nowUS >= tickStartUS ? nowUS - tickStartUS : 0;
-                if (elapsedUS < intervalUS) {
-                    settings_live_loop_sleep_interruptible(0,
-                                                           (useconds_t)(intervalUS - elapsedUS),
-                                                           &g_typebanner_live_stop_requested);
-                }
-
                 if (tick == 1) {
                     printf("[SETTINGS] TypeBanner tick=0 elapsed=%lluus\n", elapsedUS);
                 }
             }
         } @finally {
-            if (mobileSession) {
-                @synchronized (settings_rc_lock()) {
-                    [mobileSession destroyRemoteCall];
-                    mobileSession = nil;
-                }
-            }
-
             // Best-effort hide the banner before exiting — drops any stale
             // pill that might persist in SpringBoard's window list.
-            if (typebanner_has_remote_state() &&
-                g_kexploit_done && !g_settings_actions_running && !settings_cleanup_in_progress()) {
-                @synchronized (settings_rc_lock()) {
-                    RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard"
-                                                                                     useMigFilterBypass:NO
-                                                                                firstExceptionTimeoutMS:TYPEBANNER_RC_FIRST_EXCEPTION_TIMEOUT_MS];
-                    if (springboardSession) {
-                        @try {
-                            typebanner_release_mobilesms_keepalive_in_springboard_remote_session(springboardSession);
-                            typebanner_hide_in_springboard_remote_session(springboardSession);
-                        } @catch (NSException *e) {
-                            printf("[SETTINGS] TypeBanner final hide exception: %s\n", e.reason.UTF8String);
-                        }
-                        [springboardSession destroyRemoteCall];
-                    }
+            RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+            if (springboardSession) {
+                @try {
+                    typebanner_hide_in_springboard_remote_session(springboardSession);
+                } @catch (NSException *e) {
+                    printf("[SETTINGS] TypeBanner final hide exception: %s\n", e.reason.UTF8String);
                 }
-            } else {
-                printf("[SETTINGS] TypeBanner final hide skipped state=%d krw=%d actions=%d cleanup=%d\n",
-                       typebanner_has_remote_state(),
-                       g_kexploit_done, g_settings_actions_running, settings_cleanup_in_progress());
+                [springboardSession destroyRemoteCall];
             }
             typebanner_forget_remote_state();
 
@@ -2521,174 +2147,6 @@ static void settings_start_typebanner_live_loop(void)
             __sync_lock_release(&g_typebanner_live_running);
         }
     });
-}
-
-static void settings_start_themer_live_loop(void)
-{
-    if (!settings_device_supported()) return;
-    if (settings_cleanup_in_progress()) return;
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    if (![d boolForKey:kSettingsThemerEnabled]) return;
-    if (!g_springboard_rc_ready) return;
-
-    if (__sync_lock_test_and_set(&g_themer_live_running, 1)) {
-        static volatile int loggedAlready = 0;
-        if (__sync_bool_compare_and_swap(&loggedAlready, 0, 1)) {
-            printf("[SETTINGS] Themer dynamic live loop already running\n");
-        }
-        return;
-    }
-
-    if (settings_cleanup_in_progress()) {
-        __sync_lock_release(&g_themer_live_running);
-        return;
-    }
-
-    g_themer_live_stop_requested = 0;
-    dispatch_async(dispatch_get_global_queue(0, 0), ^{
-        NSUInteger tick = 0;
-        NSUInteger failures = 0;
-        NSInteger iosMajor = [[NSProcessInfo processInfo] operatingSystemVersion].majorVersion;
-        NSUInteger maxTicks = (iosMajor > 0 && iosMajor < 26)
-            ? kThemerLegacyLiveMaxTicks
-            : kThemerLiveMaxTicks;
-
-        printf("[SETTINGS] Themer dynamic live loop started interval=%uus background=%uus max=%lu iosMajor=%ld\n",
-               kThemerLiveIntervalUS,
-               kThemerLiveBackgroundIntervalUS,
-               (unsigned long)maxTicks,
-               (long)iosMajor);
-
-        @try {
-            // Start with a sleep so we don't pile a tick on top of the
-            // initial Run apply that just completed.
-            settings_live_loop_sleep_interruptible(0,
-                                                   settings_live_interval(kThemerLiveIntervalUS,
-                                                                          kThemerLiveBackgroundIntervalUS),
-                                                   &g_themer_live_stop_requested);
-            while ([d boolForKey:kSettingsThemerEnabled] &&
-                   !settings_cleanup_in_progress() &&
-                   !g_themer_live_stop_requested &&
-                   tick < maxTicks) {
-                useconds_t intervalUS = settings_live_interval(kThemerLiveIntervalUS,
-                                                               kThemerLiveBackgroundIntervalUS);
-                bool ok = false;
-
-                @synchronized (settings_rc_lock()) {
-                    if (g_themer_live_stop_requested) break;
-                    if (!g_springboard_rc_ready) {
-                        printf("[SETTINGS] Themer dynamic loop has no SpringBoard RemoteCall session\n");
-                        failures++;
-                        break;
-                    }
-                    if (!g_kexploit_done || g_settings_actions_running) {
-                        // Wait for actions to finish before next tick.
-                        ok = true;
-                    } else {
-                        ok = themer_repaint_dynamic_cached_views_in_session();
-                    }
-                }
-
-                if (tick == 0) {
-                    printf("[SETTINGS] Themer dynamic live first tick result=%d\n", ok);
-                }
-                failures = ok ? 0 : failures + 1;
-
-                tick++;
-                if (![d boolForKey:kSettingsThemerEnabled] ||
-                    g_themer_live_stop_requested ||
-                    tick >= maxTicks) break;
-
-                intervalUS = settings_live_interval(kThemerLiveIntervalUS,
-                                                    kThemerLiveBackgroundIntervalUS);
-                settings_live_loop_sleep_interruptible(0, intervalUS,
-                                                       &g_themer_live_stop_requested);
-            }
-        } @finally {
-            printf("[SETTINGS] Themer dynamic live loop exited ticks=%lu enabled=%d failures=%lu stop=%d\n",
-                   (unsigned long)tick,
-                   [d boolForKey:kSettingsThemerEnabled],
-                   (unsigned long)failures,
-                   g_themer_live_stop_requested);
-            __sync_lock_release(&g_themer_live_running);
-        }
-    });
-}
-
-static void settings_schedule_themer_repair_burst_internal(const char *reason, BOOL force)
-{
-    (void)force;
-    if (!settings_device_supported()) return;
-    if (settings_cleanup_in_progress()) return;
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    if (![d boolForKey:kSettingsThemerEnabled]) return;
-    if (!g_springboard_rc_ready) return;
-
-    __sync_add_and_fetch(&g_themer_repair_generation, 1);
-    if (__sync_lock_test_and_set(&g_themer_repair_running, 1)) return;
-
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        uint64_t seenGeneration = g_themer_repair_generation;
-        NSUInteger tick = 0;
-        NSUInteger quietTicks = 0;
-
-        printf("[SETTINGS] Themer dynamic repair burst started%s%s\n",
-               reason ? ": " : "", reason ?: "");
-
-        @try {
-            while ([d boolForKey:kSettingsThemerEnabled] &&
-                   !settings_cleanup_in_progress() &&
-                   !g_themer_live_stop_requested &&
-                   tick < 1) {
-                settings_live_loop_sleep_interruptible(0,
-                                                       tick == 0
-                                                           ? kThemerRepairInitialDelayUS
-                                                           : kThemerRepairIntervalUS,
-                                                       &g_themer_live_stop_requested);
-                if (g_themer_live_stop_requested) break;
-
-                bool ok = false;
-                @synchronized (settings_rc_lock()) {
-                    if (!g_springboard_rc_ready || !g_kexploit_done ||
-                        g_settings_actions_running) {
-                        ok = true;
-                    } else {
-                        ok = themer_repaint_dynamic_cached_views_in_session();
-                    }
-                }
-
-                tick++;
-                uint64_t currentGeneration = g_themer_repair_generation;
-                if (currentGeneration != seenGeneration) {
-                    seenGeneration = currentGeneration;
-                    quietTicks = 0;
-                } else {
-                    quietTicks++;
-                    if (quietTicks >= 2) break;
-                }
-
-                if (tick == 1) {
-                    printf("[SETTINGS] Themer dynamic repair first repaint=%d\n", ok);
-                }
-            }
-        } @finally {
-            printf("[SETTINGS] Themer dynamic repair burst exited ticks=%lu\n",
-                   (unsigned long)tick);
-            __sync_lock_release(&g_themer_repair_running);
-        }
-    });
-}
-
-static void settings_schedule_themer_repair_burst(const char *reason)
-{
-    settings_schedule_themer_repair_burst_internal(reason, YES);
-}
-
-static void settings_schedule_themer_quiet_repair_burst(const char *reason)
-{
-    settings_schedule_themer_repair_burst_internal(reason, NO);
 }
 
 static void settings_apply_axonlite_once_async(const char *reason)
@@ -2745,7 +2203,6 @@ void settings_application_did_enter_background(void)
         ([d boolForKey:kSettingsAxonLiteEnabled]    && g_springboard_rc_ready) ||
         (settings_rssi_install_allowed() && [d boolForKey:kSettingsRSSIDisplayEnabled] && g_springboard_rc_ready) ||
         ([d boolForKey:kSettingsStatBarEnabled]     && g_springboard_rc_ready) ||
-        ([d boolForKey:kSettingsThemerEnabled]      && g_springboard_rc_ready) ||
         [d boolForKey:kSettingsTypeBannerEnabled];
     if (anyLiveLoopNeeded) {
         if ([d boolForKey:kSettingsKeepAlive]) {
@@ -2780,7 +2237,6 @@ void settings_application_will_enter_foreground(void)
     settings_apply_statbar_once_async("will enter foreground");
     settings_apply_rssi_once_async("will enter foreground");
     settings_apply_axonlite_once_async("will enter foreground");
-    settings_start_themer_live_loop();
     if ([[NSUserDefaults standardUserDefaults] boolForKey:kSettingsTypeBannerEnabled]) {
         settings_start_typebanner_live_loop();
     }
@@ -2794,7 +2250,6 @@ void settings_application_did_become_active(void)
     settings_apply_statbar_once_async("became active");
     settings_apply_rssi_once_async("became active");
     settings_apply_axonlite_once_async("became active");
-    settings_start_themer_live_loop();
     if ([[NSUserDefaults standardUserDefaults] boolForKey:kSettingsTypeBannerEnabled]) {
         settings_start_typebanner_live_loop();
     }
@@ -2813,9 +2268,7 @@ static BOOL settings_key_is_statbar(NSString *key)
 {
     return [key isEqualToString:kSettingsStatBarEnabled] ||
            [key isEqualToString:kSettingsStatBarCelsius] ||
-           [key isEqualToString:kSettingsStatBarShowNet] ||
-           [key isEqualToString:kSettingsStatBarShowCPU] ||
-           [key isEqualToString:kSettingsStatBarShowLabels];
+           [key isEqualToString:kSettingsStatBarHideNet];
 }
 
 static BOOL settings_key_is_rssi(NSString *key)
@@ -2828,6 +2281,47 @@ static BOOL settings_key_is_rssi(NSString *key)
 static BOOL settings_key_is_axonlite(NSString *key)
 {
     return [key isEqualToString:kSettingsAxonLiteEnabled];
+}
+
+static BOOL settings_key_is_snowboardlite(NSString *key)
+{
+    return [key isEqualToString:kSettingsSnowBoardLiteEnabled];
+}
+
+static BOOL settings_key_is_atrialite(NSString *key)
+{
+    return [key isEqualToString:kSettingsAtriaLiteEnabled] ||
+           [key isEqualToString:kSettingsAtriaLiteDockIcons] ||
+           [key isEqualToString:kSettingsAtriaLiteCols] ||
+           [key isEqualToString:kSettingsAtriaLiteRows] ||
+           [key isEqualToString:kSettingsAtriaLiteHideLabels] ||
+           [key isEqualToString:kSettingsAtriaLiteIconScale] ||
+           [key isEqualToString:kSettingsAtriaLiteIconOffsetY];
+}
+
+static BOOL settings_key_is_customiconslite(NSString *key)
+{
+    return [key isEqualToString:kSettingsCustomIconsEnabled];
+}
+
+static BOOL settings_key_is_iconshapes(NSString *key)
+{
+    return [key isEqualToString:kSettingsIconShapesEnabled] ||
+           [key isEqualToString:kSettingsIconShapesShape] ||
+           [key isEqualToString:kSettingsIconShapesCornerPct];
+}
+
+static BOOL settings_key_is_doodlelite(NSString *key)
+{
+    return [key isEqualToString:kSettingsDoodleLiteEnabled] ||
+           [key isEqualToString:kSettingsDoodleLiteThreshold];
+}
+
+static BOOL settings_key_is_syscolpatcher(NSString *key)
+{
+    return [key isEqualToString:kSettingsSysColPatcherEnabled] ||
+           [key isEqualToString:kSettingsSysColPatcherPreset] ||
+           [key isEqualToString:kSettingsSysColPatcherTint];
 }
 
 static BOOL settings_key_is_typebanner(NSString *key)
@@ -2851,8 +2345,10 @@ static BOOL settings_key_affects_package_state(NSString *key)
            [key isEqualToString:kSettingsStatBarEnabled] ||
            [key isEqualToString:kSettingsRSSIDisplayEnabled] ||
            [key isEqualToString:kSettingsAxonLiteEnabled] ||
+           [key isEqualToString:kSettingsSnowBoardLiteEnabled] ||
+           [key isEqualToString:kSettingsAtriaLiteEnabled] ||
            [key isEqualToString:kSettingsTypeBannerEnabled] ||
-           [key isEqualToString:kSettingsThemerEnabled] ||
+           [key isEqualToString:kSettingsSysColPatcherEnabled] ||
            settings_key_is_dark_tweak(key);
 }
 
@@ -2872,8 +2368,8 @@ static void settings_schedule_live_apply_for_key(NSString *key)
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
 
     if (settings_key_is_typebanner(key)) {
-        // TypeBanner owns its own daemon + SpringBoard sessions, but its
-        // bootstrap is serialized with the shared RemoteCall lock.
+        // TypeBanner does not depend on the shared SpringBoard session; it
+        // owns its own MobileSMS + SpringBoard sessions inside the live loop.
         if ([d boolForKey:kSettingsTypeBannerEnabled]) {
             settings_mark_tweak_applied(kSettingsTypeBannerEnabled, YES);
             settings_notify_package_queue_changed_async();
@@ -2886,22 +2382,15 @@ static void settings_schedule_live_apply_for_key(NSString *key)
             // also hide on its own way out, but doing it here gets the pill
             // off the screen faster after the user toggles off.
             dispatch_async(dispatch_get_global_queue(0, 0), ^{
-                if (g_kexploit_done) {
-                    @synchronized (settings_rc_lock()) {
-                        RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard"
-                                                                                         useMigFilterBypass:NO
-                                                                                    firstExceptionTimeoutMS:TYPEBANNER_RC_FIRST_EXCEPTION_TIMEOUT_MS];
-                        if (springboardSession) {
-                            @try {
-                                typebanner_release_mobilesms_keepalive_in_springboard_remote_session(springboardSession);
-                                typebanner_hide_in_springboard_remote_session(springboardSession);
-                            } @catch (NSException *e) {
-                                printf("[SETTINGS] TypeBanner toggle-off hide exception: %s\n",
-                                       e.reason.UTF8String);
-                            }
-                            [springboardSession destroyRemoteCall];
-                        }
+                RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+                if (springboardSession) {
+                    @try {
+                        typebanner_hide_in_springboard_remote_session(springboardSession);
+                    } @catch (NSException *e) {
+                        printf("[SETTINGS] TypeBanner toggle-off hide exception: %s\n",
+                               e.reason.UTF8String);
                     }
+                    [springboardSession destroyRemoteCall];
                 }
                 typebanner_forget_remote_state();
             });
@@ -2951,15 +2440,68 @@ static void settings_schedule_live_apply_for_key(NSString *key)
         return;
     }
 
+    if (settings_key_is_snowboardlite(key)) {
+        if ([d boolForKey:kSettingsSnowBoardLiteEnabled] && g_springboard_rc_ready) {
+            dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                @synchronized (settings_rc_lock()) {
+                    if (settings_cleanup_in_progress() || !g_springboard_rc_ready) return;
+                    bool ok = snowboardlite_apply_in_session();
+                    settings_mark_tweak_applied(kSettingsSnowBoardLiteEnabled,
+                                                ok && [d boolForKey:kSettingsSnowBoardLiteEnabled]);
+                    printf("[SETTINGS] live SnowBoard Lite apply result=%d\n", ok);
+                }
+                settings_notify_package_queue_changed_async();
+            });
+        } else if (![d boolForKey:kSettingsSnowBoardLiteEnabled]) {
+            settings_mark_tweak_applied(kSettingsSnowBoardLiteEnabled, NO);
+            settings_notify_package_queue_changed_async();
+            if (g_springboard_rc_ready) {
+                dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                    @synchronized (settings_rc_lock()) {
+                        if (g_springboard_rc_ready) snowboardlite_stop_in_session();
+                    }
+                });
+            }
+        }
+        return;
+    }
+
+    if (settings_key_is_atrialite(key)) {
+        if (g_springboard_rc_ready) {
+            BOOL enabled = [d boolForKey:kSettingsAtriaLiteEnabled];
+            dispatch_async(dispatch_get_global_queue(0, 0), ^{
+                @synchronized (settings_rc_lock()) {
+                    if (settings_cleanup_in_progress() || !g_springboard_rc_ready) return;
+                    bool ok = false;
+                    if (enabled) {
+                        ok = settings_apply_atrialite_from_defaults_locked(d);
+                    } else if ([d boolForKey:kSettingsSBCEnabled]) {
+                        ok = settings_apply_sbc_from_defaults_locked(d);
+                        settings_mark_tweak_applied(kSettingsSBCEnabled, ok);
+                    } else {
+                        ok = atrialite_stop_in_session();
+                    }
+                    settings_mark_tweak_applied(kSettingsAtriaLiteEnabled,
+                                                ok && enabled && [d boolForKey:kSettingsAtriaLiteEnabled]);
+                    printf("[SETTINGS] live Atria Lite %s result=%d\n",
+                           enabled ? "apply" : "restore", ok);
+                }
+                settings_notify_package_queue_changed_async();
+            });
+        } else if (![d boolForKey:kSettingsAtriaLiteEnabled]) {
+            settings_mark_tweak_applied(kSettingsAtriaLiteEnabled, NO);
+            settings_notify_package_queue_changed_async();
+        }
+        return;
+    }
+
     if (settings_key_is_statbar(key)) {
         if ([d boolForKey:kSettingsStatBarEnabled] && g_springboard_rc_ready) {
             dispatch_async(dispatch_get_global_queue(0, 0), ^{
                 @synchronized (settings_rc_lock()) {
                     if (settings_cleanup_in_progress() || !g_springboard_rc_ready) return;
                     bool ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                       [d boolForKey:kSettingsStatBarShowNet],
-                                                       [d boolForKey:kSettingsStatBarShowCPU],
-                                                       [d boolForKey:kSettingsStatBarShowLabels]);
+                                                       [d boolForKey:kSettingsStatBarHideNet]);
                     settings_mark_tweak_applied(kSettingsStatBarEnabled,
                                                 ok && [d boolForKey:kSettingsStatBarEnabled]);
                     printf("[SETTINGS] live StatBar apply result=%d\n", ok);
@@ -3085,7 +2627,7 @@ void settings_register_defaults(void)
         kSettingsSBCHideLabels: @(kSBCDefaultHideLabels),
 
         kSettingsPowercuffEnabled: @NO,
-        kSettingsPowercuffLevel:   @"nominal",
+        kSettingsPowercuffLevel:   @"heavy",
 
         kSettingsDSDisableAppLibrary: @NO,
         kSettingsDSDisableIconFlyIn:  @NO,
@@ -3093,20 +2635,9 @@ void settings_register_defaults(void)
         kSettingsDSZeroBacklightFade: @NO,
         kSettingsDSDoubleTapToLock:   @NO,
 
-        kSettingsLayoutExtrasEnabled:       @NO,
-        kSettingsLayoutHomeExtraLeft:       @0,
-        kSettingsLayoutHomeExtraRight:      @0,
-        kSettingsLayoutHomeExtraTop:        @0,
-        kSettingsLayoutHomeExtraBottom:     @0,
-        kSettingsLayoutDockExtraHorizontal: @0,
-        kSettingsLayoutHomeScalePct:        @100,
-        kSettingsLayoutDockScalePct:        @100,
-
         kSettingsStatBarEnabled: @NO,
         kSettingsStatBarCelsius: @NO,
-        kSettingsStatBarShowNet:    @NO,
-        kSettingsStatBarShowCPU:    @YES,
-        kSettingsStatBarShowLabels: @YES,
+        kSettingsStatBarHideNet: @NO,
 
         kSettingsRSSIDisplayEnabled: @NO,
         kSettingsRSSIDisplayWifi:    @YES,
@@ -3114,41 +2645,27 @@ void settings_register_defaults(void)
 
         kSettingsAxonLiteEnabled: @NO,
 
+        kSettingsSnowBoardLiteEnabled: @NO,
+
+        kSettingsAtriaLiteEnabled: @NO,
+        kSettingsAtriaLiteDockIcons: @(kAtriaLiteDefaultDockIcons),
+        kSettingsAtriaLiteCols: @(kAtriaLiteDefaultCols),
+        kSettingsAtriaLiteRows: @(kAtriaLiteDefaultRows),
+        kSettingsAtriaLiteHideLabels: @(kAtriaLiteDefaultHideLabels),
+        kSettingsAtriaLiteIconScale: @(kAtriaLiteDefaultIconScale),
+        kSettingsAtriaLiteIconOffsetY: @(kAtriaLiteDefaultIconOffsetY),
+
         kSettingsTypeBannerEnabled: @NO,
-
-        kSettingsStageStripEnabled: @NO,
-
-        kSettingsThemerEnabled: @NO,
-        kSettingsThemerThemeID: kThemerThemeNone,
-        kSettingsThemerCustomThemePath: @"",
-        kSettingsThemerCustomThemeName: @"",
-
-        kSettingsExperimentalTweaksEnabled: @NO,
 
         kSettingsNanoMaxPairing:       @(kNanoDefaultMaxPairing),
         kSettingsNanoMinPairing:       @(kNanoDefaultMinPairing),
         kSettingsNanoMinPairingChipID: @(kNanoDefaultMinPairingChipID),
         kSettingsNanoMinQuickSwitch:   @(kNanoDefaultMinQuickSwitch),
     }];
-    if (!cyanide_is_patron()) {
-        if ([defaults boolForKey:kSettingsExperimentalTweaksEnabled]) {
-            [defaults setBool:NO forKey:kSettingsExperimentalTweaksEnabled];
-        }
-        if ([defaults boolForKey:kSettingsRSSIDisplayEnabled]) {
-            [defaults setBool:NO forKey:kSettingsRSSIDisplayEnabled];
-        }
-        if ([defaults boolForKey:kSettingsTypeBannerEnabled]) {
-            [defaults setBool:NO forKey:kSettingsTypeBannerEnabled];
-        }
-        [defaults synchronize];
-    } else if (![defaults boolForKey:kSettingsExperimentalTweaksEnabled] &&
-               [defaults boolForKey:kSettingsRSSIDisplayEnabled]) {
+    // Signal Readouts is temporarily blocked from installation because its
+    // live RemoteCall refresh still interferes with other SpringBoard tweaks.
+    if ([defaults boolForKey:kSettingsRSSIDisplayEnabled]) {
         [defaults setBool:NO forKey:kSettingsRSSIDisplayEnabled];
-        [defaults synchronize];
-    }
-    if ([defaults boolForKey:kSettingsThemerEnabled] &&
-        !settings_themer_has_selected_theme()) {
-        [defaults setBool:NO forKey:kSettingsThemerEnabled];
         [defaults synchronize];
     }
     settings_install_screen_awake_observers();
@@ -3170,15 +2687,8 @@ void settings_run_actions(void)
             log_user("[RUN] Already running. Queued one follow-up run for the latest package state.\n");
             return;
         }
-        if (g_statbar_live_running || g_rssi_live_running ||
-            g_axonlite_live_running || g_typebanner_live_running) {
-            settings_request_all_live_loops_stop("Apply Tweaks");
-            settings_wait_live_loops_stopped_for_switch("Apply Tweaks");
-        }
         log_session_begin();
         cyanide_start_session_uploads();
-        BOOL runSucceeded = NO;
-        NSString *runCompletionMessage = @"Run failed. Check the log for details.";
         @try {
             BOOL patchSandboxExt = [d boolForKey:kSettingsRunPatchSandboxExt];
             BOOL runPowercuff = [d boolForKey:kSettingsPowercuffEnabled];
@@ -3188,13 +2698,13 @@ void settings_run_actions(void)
             BOOL runStatBar = [d boolForKey:kSettingsStatBarEnabled];
             BOOL runRSSI = settings_rssi_install_allowed() && [d boolForKey:kSettingsRSSIDisplayEnabled];
             BOOL runAxonLite = [d boolForKey:kSettingsAxonLiteEnabled];
+            BOOL runSnowBoardLite = [d boolForKey:kSettingsSnowBoardLiteEnabled];
+            BOOL runAtriaLite = [d boolForKey:kSettingsAtriaLiteEnabled];
             BOOL runTypeBanner = [d boolForKey:kSettingsTypeBannerEnabled];
-            BOOL runThemer = [d boolForKey:kSettingsThemerEnabled];
-            BOOL runLayoutExtras = [d boolForKey:kSettingsLayoutExtrasEnabled];
-            BOOL runStageStrip = [d boolForKey:kSettingsStageStripEnabled];
-            // TypeBanner prewarms its hidden SpringBoard window during Apply
-            // and reuses the open SpringBoard session for text-only updates.
-            BOOL needsSpringBoard = runSandboxEscape || runSBC || runDarkTweaks || runStatBar || runRSSI || runAxonLite || runLayoutExtras || runTypeBanner || runThemer || runStageStrip;
+            // TypeBanner does its own session management (alternates MobileSMS
+            // and SpringBoard), so it doesn't gate the shared SpringBoard
+            // session that other tweaks need during Apply Tweaks.
+            BOOL needsSpringBoard = runSandboxEscape || runSBC || runDarkTweaks || runStatBar || runRSSI || runAxonLite || runSnowBoardLite || runAtriaLite;
 
             NSUInteger total = 1;
             if (patchSandboxExt) total++;
@@ -3203,25 +2713,26 @@ void settings_run_actions(void)
             if (runSandboxEscape) total++;
             if (runSBC) total++;
             if (runDarkTweaks) total++;
-            if (runLayoutExtras) total++;
-            if (runThemer) total++;
             if (runStatBar) total++;
             if (runRSSI) total++;
             if (runAxonLite) total++;
+            if (runSnowBoardLite) total++;
+            if (runAtriaLite) total++;
             if (runTypeBanner) total++;
-            if (runStageStrip) total++;
             NSUInteger step = 0;
 
             settings_log_run_context();
             log_user("[RUN] Verbose trace active; raw debug stream is mirrored into the app log.\n");
-            log_user("[PLAN] stages=%lu springboard=%s sbc=%s dark=%s statbar=%s rssi=%s axon=%s power=%s\n",
+            log_user("[PLAN] stages=%lu springboard=%s sbc=%s atria=%s dark=%s statbar=%s rssi=%s axon=%s snowboard=%s power=%s\n",
                      (unsigned long)total,
                      needsSpringBoard ? "yes" : "no",
                      runSBC ? "yes" : "no",
+                     runAtriaLite ? "yes" : "no",
                      runDarkTweaks ? "yes" : "no",
                      runStatBar ? "yes" : "no",
                      runRSSI ? "yes" : "no",
                      runAxonLite ? "yes" : "no",
+                     runSnowBoardLite ? "yes" : "no",
                      runPowercuff ? "yes" : "no");
             if (runSBC) {
                 log_user("[PLAN] Home layout target: dock=%ld home=%ldx%ld labels=%s\n",
@@ -3230,21 +2741,19 @@ void settings_run_actions(void)
                          (long)[d integerForKey:kSettingsSBCRows],
                          [d boolForKey:kSettingsSBCHideLabels] ? "hidden" : "shown");
             }
-            if (runLayoutExtras) {
-                log_user("[PLAN] Layout extras: home=+L%ld/R%ld/T%ld/B%ld dock=+H%ld scale=home%ld%%/dock%ld%%\n",
-                         (long)[d integerForKey:kSettingsLayoutHomeExtraLeft],
-                         (long)[d integerForKey:kSettingsLayoutHomeExtraRight],
-                         (long)[d integerForKey:kSettingsLayoutHomeExtraTop],
-                         (long)[d integerForKey:kSettingsLayoutHomeExtraBottom],
-                         (long)[d integerForKey:kSettingsLayoutDockExtraHorizontal],
-                         (long)[d integerForKey:kSettingsLayoutHomeScalePct],
-                         (long)[d integerForKey:kSettingsLayoutDockScalePct]);
+            if (runAtriaLite) {
+                log_user("[PLAN] Atria Lite target: dock=%ld home=%ldx%ld labels=%s iconScale=%ld%% offsetY=%ld\n",
+                         (long)[d integerForKey:kSettingsAtriaLiteDockIcons],
+                         (long)[d integerForKey:kSettingsAtriaLiteCols],
+                         (long)[d integerForKey:kSettingsAtriaLiteRows],
+                         [d boolForKey:kSettingsAtriaLiteHideLabels] ? "hidden" : "shown",
+                         (long)[d integerForKey:kSettingsAtriaLiteIconScale],
+                         (long)[d integerForKey:kSettingsAtriaLiteIconOffsetY]);
             }
             if (runStatBar) {
-                log_user("[PLAN] StatBar target: temp=%s cpu=%s network=%s refresh=1s\n",
+                log_user("[PLAN] StatBar target: temp=%s network=%s refresh=1s\n",
                          [d boolForKey:kSettingsStatBarCelsius] ? "C" : "F",
-                         [d boolForKey:kSettingsStatBarShowCPU] ? "shown" : "hidden",
-                         [d boolForKey:kSettingsStatBarShowNet] ? "shown" : "hidden");
+                         [d boolForKey:kSettingsStatBarHideNet] ? "hidden" : "shown");
             }
             if (runRSSI) {
                 log_user("[PLAN] RSSI display target: wifi=%s cell=%s refresh=1s\n",
@@ -3254,8 +2763,11 @@ void settings_run_actions(void)
             if (runAxonLite) {
                 log_user("[PLAN] Axon Lite target: segmented notification hub refresh=15s\n");
             }
+            if (runSnowBoardLite) {
+                log_user("[PLAN] SnowBoard Lite target: bundled PNG theme icons via App Library warmup\n");
+            }
             if (runPowercuff) {
-                NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"nominal";
+                NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"heavy";
                 log_user("[PLAN] Powercuff target: thermalmonitord level=%s\n", lvl.UTF8String);
             }
             cyanide_upload_log_milestone(@"run-plan");
@@ -3263,7 +2775,6 @@ void settings_run_actions(void)
             settings_progress(&step, total, "Preparing KRW primitives (socket/IOSurface path)");
             if (!settings_ensure_kexploit()) {
                 log_user("[RUN] Failed: kernel primitives were not acquired.\n");
-                runCompletionMessage = @"Failed: kernel primitives were not acquired.";
                 cyanide_upload_log_milestone(@"krw-failed");
                 return;
             }
@@ -3276,7 +2787,7 @@ void settings_run_actions(void)
                 log_user("[OK] Sandbox-extension patch stage finished.\n");
                 cyanide_upload_log_milestone(@"sandbox-ext-patched");
             }
-            printf("[SETTINGS] actions escape=%d patch=%d sbc=%d dock=%ld hs=%ldx%ld hideLabels=%d dark=%d power=%d level=%s statbar=%d celsius=%d showNet=%d showCPU=%d rssi=%d rssiWifi=%d rssiCell=%d axon=%d rcReady=%d\n",
+            printf("[SETTINGS] actions escape=%d patch=%d sbc=%d dock=%ld hs=%ldx%ld hideLabels=%d atria=%d dark=%d power=%d level=%s statbar=%d celsius=%d hideNet=%d rssi=%d rssiWifi=%d rssiCell=%d axon=%d snowboard=%d rcReady=%d\n",
                    runSandboxEscape,
                    patchSandboxExt,
                    runSBC,
@@ -3284,17 +2795,18 @@ void settings_run_actions(void)
                    (long)[d integerForKey:kSettingsSBCCols],
                    (long)[d integerForKey:kSettingsSBCRows],
                    [d boolForKey:kSettingsSBCHideLabels],
+                   runAtriaLite,
                    runDarkTweaks,
                    runPowercuff,
                    ([d stringForKey:kSettingsPowercuffLevel] ?: @"").UTF8String,
                    runStatBar,
                    [d boolForKey:kSettingsStatBarCelsius],
-                   [d boolForKey:kSettingsStatBarShowNet],
-                   [d boolForKey:kSettingsStatBarShowCPU],
+                   [d boolForKey:kSettingsStatBarHideNet],
                    runRSSI,
                    [d boolForKey:kSettingsRSSIDisplayWifi],
                    [d boolForKey:kSettingsRSSIDisplayCell],
                    runAxonLite,
+                   runSnowBoardLite,
                    g_springboard_rc_ready);
 
             if (runPowercuff) {
@@ -3311,7 +2823,7 @@ void settings_run_actions(void)
                     // not run SpringBoard tweak stop paths or clear applied
                     // package state; enabled tweaks are reapplied below.
                     settings_destroy_springboard_remote_call_locked_internal("switching to thermalmonitord", NO);
-                    NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"nominal";
+                    NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"heavy";
                     bool ok = powercuff_apply(lvl.UTF8String);
                     settings_mark_tweak_applied(kSettingsPowercuffEnabled,
                                                 ok && [d boolForKey:kSettingsPowercuffEnabled]);
@@ -3327,7 +2839,6 @@ void settings_run_actions(void)
                     settings_progress(&step, total, "Opening SpringBoard RemoteCall session");
                     if (!settings_ensure_springboard_remote_call_locked()) {
                         log_user("[RUN] Failed: could not open the SpringBoard control session.\n");
-                        runCompletionMessage = @"Failed: could not open the SpringBoard control session.";
                         cyanide_upload_log_milestone(@"springboard-remote-call-failed");
                         return;
                     }
@@ -3348,15 +2859,6 @@ void settings_run_actions(void)
                         settings_progress(&step, total, "Reusing SpringBoard sandbox token");
                         log_user("[OK] SpringBoard filesystem token already consumed.\n");
                         cyanide_upload_log_milestone(@"springboard-sandbox-token-reused");
-                    }
-
-                    if (runTypeBanner) {
-                        bool ok = typebanner_prepare_in_springboard_session();
-                        printf("[SETTINGS] TypeBanner SpringBoard prewarm result=%d\n", ok);
-                        log_user("%s TypeBanner overlay window %s.\n",
-                                 ok ? "[OK]" : "[WARN]",
-                                 ok ? "prewarmed" : "did not prewarm");
-                        cyanide_upload_log_milestone(ok ? @"typebanner-overlay-prewarmed" : @"typebanner-overlay-prewarm-failed");
                     }
 
                     if (runSBC) {
@@ -3393,37 +2895,22 @@ void settings_run_actions(void)
                         cyanide_upload_log_milestone(ok ? @"darksword-tweaks-applied" : @"darksword-tweaks-warning");
                     }
 
-                    if ([d boolForKey:kSettingsLayoutExtrasEnabled]) {
-                        settings_progress(&step, total, "Applying Home Layout Extras");
-                        bool ok = settings_apply_layout_extras_from_defaults_locked(d);
-                        settings_mark_tweak_applied(kSettingsLayoutExtrasEnabled, ok);
-                        printf("[SETTINGS] Layout extras result=%d\n", ok);
-                        log_user("%s Home Layout Extras %s.\n",
+                    if (runAtriaLite) {
+                        settings_progress(&step, total, "Applying Atria Lite layout preset");
+                        bool ok = settings_apply_atrialite_from_defaults_locked(d);
+                        settings_mark_tweak_applied(kSettingsAtriaLiteEnabled,
+                                                    ok && [d boolForKey:kSettingsAtriaLiteEnabled]);
+                        printf("[SETTINGS] Atria Lite result=%d\n", ok);
+                        log_user("%s Atria Lite %s.\n",
                                  ok ? "[OK]" : "[WARN]",
-                                 ok ? "applied" : "did not apply cleanly");
-                        cyanide_upload_log_milestone(ok ? @"layout-extras-applied" : @"layout-extras-warning");
-                    }
-
-                    if (runThemer) {
-                        settings_progress(&step, total, "Applying Cyanide Themer");
-                        bool ok = settings_apply_themer_from_defaults_locked(d);
-                        settings_mark_tweak_applied(kSettingsThemerEnabled, ok);
-                        printf("[SETTINGS] Themer result=%d\n", ok);
-                        log_user("%s Cyanide Themer %s.\n",
-                                 ok ? "[OK]" : "[WARN]",
-                                 ok ? "applied" : "did not apply cleanly");
-                        cyanide_upload_log_milestone(ok ? @"themer-applied" : @"themer-warning");
-                        if (ok) {
-                            settings_start_themer_live_loop();
-                        }
+                                 ok ? "applied the configured layout" : "did not apply cleanly");
+                        cyanide_upload_log_milestone(ok ? @"atria-lite-applied" : @"atria-lite-warning");
                     }
 
                     if (runStatBar) {
                         settings_progress(&step, total, "Starting StatBar overlay and 1s feed");
                         bool ok = statbar_apply_in_session([d boolForKey:kSettingsStatBarCelsius],
-                                                           [d boolForKey:kSettingsStatBarShowNet],
-                                                           [d boolForKey:kSettingsStatBarShowCPU],
-                                                           [d boolForKey:kSettingsStatBarShowLabels]);
+                                                           [d boolForKey:kSettingsStatBarHideNet]);
                         settings_mark_tweak_applied(kSettingsStatBarEnabled,
                                                     ok && [d boolForKey:kSettingsStatBarEnabled]);
                         printf("[SETTINGS] StatBar result=%d\n", ok);
@@ -3469,21 +2956,16 @@ void settings_run_actions(void)
                                                      (deferred ? @"axon-lite-initial-deferred" : @"axon-lite-initial-failed"));
                     }
 
-                    if (runStageStrip) {
-                        settings_progress(&step, total, "Installing Dynamic Stage Lite");
-                        bool ok = stagestrip_apply_in_session(4);
-                        if (ok) stagestrip_start_control_loop();
-                        settings_mark_tweak_applied(kSettingsStageStripEnabled,
-                                                    ok && [d boolForKey:kSettingsStageStripEnabled]);
-                        printf("[SETTINGS] Dynamic Stage Lite result=%d\n", ok);
-                        log_user("%s Dynamic Stage Lite %s.\n",
+                    if (runSnowBoardLite) {
+                        settings_progress(&step, total, "Applying SnowBoard Lite icon theme");
+                        bool ok = snowboardlite_apply_in_session();
+                        settings_mark_tweak_applied(kSettingsSnowBoardLiteEnabled,
+                                                    ok && [d boolForKey:kSettingsSnowBoardLiteEnabled]);
+                        printf("[SETTINGS] SnowBoard Lite result=%d\n", ok);
+                        log_user("%s SnowBoard Lite %s.\n",
                                  ok ? "[OK]" : "[WARN]",
-                                 ok ? "installed" : "did not install cleanly");
-                        cyanide_upload_log_milestone(ok ? @"stagestrip-initial-applied" : @"stagestrip-initial-failed");
-                    } else {
-                        // Uninstall path: tear down the overlay if one survived
-                        // from a prior Run. No-op when the strip was never up.
-                        stagestrip_stop_in_session();
+                                 ok ? "replaced matching loaded icons" : "found no matching theme PNGs for loaded icons");
+                        cyanide_upload_log_milestone(ok ? @"snowboard-lite-applied" : @"snowboard-lite-warning");
                     }
                 }
 
@@ -3502,45 +2984,20 @@ void settings_run_actions(void)
                 } else {
                     g_axonlite_live_stop_requested = 1;
                 }
-            }
-
-            if (runTypeBanner) {
-                settings_progress(&step, total, "Starting TypeBanner daemon poll");
-                settings_mark_tweak_applied(kSettingsTypeBannerEnabled, YES);
-                log_user("[OK] TypeBanner polling imagent every ~1s.\n");
-                cyanide_upload_log_milestone(@"typebanner-live-starting");
-                // Daemon-only detection avoids foregrounding Messages and
-                // avoids the MobileSMS synthetic-thread PAC/0x401 crash path.
-                printf("[TYPEBANNER] daemon-only: starting live loop without sms launch\n");
-                dispatch_after(dispatch_time(DISPATCH_TIME_NOW,
-                                             (int64_t)kTypeBannerInitialDaemonSettleUS * NSEC_PER_USEC),
-                               dispatch_get_global_queue(0, 0), ^{
+                if (runTypeBanner) {
+                    settings_progress(&step, total, "Starting TypeBanner Messages poll");
+                    settings_mark_tweak_applied(kSettingsTypeBannerEnabled, YES);
+                    log_user("[OK] TypeBanner polling Messages every ~1.5s.\n");
+                    cyanide_upload_log_milestone(@"typebanner-live-starting");
                     settings_start_typebanner_live_loop();
-                });
-            } else {
-                g_typebanner_live_stop_requested = 1;
-            }
-            if (runStatBar || runRSSI || runAxonLite || runTypeBanner)
-                cyanide_upload_log_milestone(@"live-tweaks-started");
-
-            if (!settings_has_persistent_springboard_remote_call_user()) {
-                BOOL closedNonLiveRemoteCall = NO;
-                @synchronized (settings_rc_lock()) {
-                    if (!settings_has_persistent_springboard_remote_call_user() &&
-                        g_springboard_rc_ready) {
-                        settings_destroy_springboard_remote_call_locked("non-live run complete");
-                        closedNonLiveRemoteCall = YES;
-                    }
+                } else {
+                    g_typebanner_live_stop_requested = 1;
                 }
-                if (closedNonLiveRemoteCall) {
-                    log_user("[OK] SpringBoard RemoteCall closed; no live tweak needs it.\n");
-                    cyanide_upload_log_milestone(@"springboard-remote-call-closed");
-                }
+                if (runStatBar || runRSSI || runAxonLite || runTypeBanner)
+                    cyanide_upload_log_milestone(@"live-tweaks-started");
             }
 
             log_user("[DONE] Run complete. Verbose trace captured the raw call stream.\n");
-            runSucceeded = YES;
-            runCompletionMessage = @"Done. All tweaks applied in-session.";
             cyanide_upload_log_milestone(@"run-complete");
         } @finally {
             // Close any legacy uploader state before the final snapshot.
@@ -3554,15 +3011,10 @@ void settings_run_actions(void)
                 return;
             }
             dispatch_async(dispatch_get_main_queue(), ^{
-                NSDictionary *completionInfo = @{
-                    kSettingsActionsDidCompleteSuccessKey: @(runSucceeded),
-                    kSettingsActionsDidCompleteMessageKey: runCompletionMessage ?: @""
-                };
                 [[NSNotificationCenter defaultCenter] postNotificationName:PackageQueueDidChangeNotification
                                                                     object:[PackageQueue sharedQueue]];
                 [[NSNotificationCenter defaultCenter] postNotificationName:kSettingsActionsDidCompleteNotification
-                                                                    object:nil
-                                                                  userInfo:completionInfo];
+                                                                    object:nil];
                 cyanide_upload_log_if_enabled();
             });
         }
@@ -3575,27 +3027,26 @@ typedef NS_ENUM(NSInteger, SettingsSection) {
     SectionActions,
     SectionOTA,
     SectionSBC,
+    SectionAtriaLite,
     SectionStatBar,
     SectionRSSI,
     SectionAxonLite,
     SectionTypeBanner,
     SectionPowercuff,
     SectionDarkSwordTweaks,
-    SectionLayoutExtras,
     SectionNanoRegistry,
-    SectionThemer,
+    SectionSysColPatcher,
+    SectionDoodleLite,
+    SectionIconShapes,
+    SectionCustomIcons,
     SectionCount,
 };
 
 typedef NS_ENUM(NSInteger, RootSection) {
     RootSectionChangelog = 0,
-    RootSectionPatreon,
-    RootSectionExperimental,
     RootSectionActions,
     RootSectionTweakBundles,
     RootSectionSystemBundles,
-    RootSectionAppIcon,
-    RootSectionDocs,
     RootSectionAbout,
     RootSectionWarning,
     RootSectionCount,
@@ -3647,7 +3098,7 @@ static NSString *settings_pretty_date_for_iso(NSString *iso)
     return date ? [out stringFromDate:date] : iso;
 }
 
-@interface SettingsViewController () <UIDocumentPickerDelegate>
+@interface SettingsViewController ()
 @property (nonatomic, strong) UISegmentedControl *powercuffSegmented;
 @property (nonatomic, assign) BOOL pendingManualActionsReload;
 @property (nonatomic, assign) BOOL detailMode;
@@ -3674,237 +3125,6 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     dispatch_once(&once, ^{ d = [[_CyanideMailDelegate alloc] init]; });
     return d;
 }
-
-@interface ThemerFormatGuideViewController : UITableViewController
-@end
-
-@implementation ThemerFormatGuideViewController
-
-- (void)viewDidLoad
-{
-    [super viewDidLoad];
-    self.title = @"Theme Format";
-    self.tableView.rowHeight = UITableViewAutomaticDimension;
-    self.tableView.estimatedRowHeight = 72.0;
-}
-
-- (NSInteger)numberOfSectionsInTableView:(UITableView *)tableView
-{
-    return 3;
-}
-
-- (NSInteger)tableView:(UITableView *)tableView numberOfRowsInSection:(NSInteger)section
-{
-    return section == 2 ? 3 : 1;
-}
-
-- (NSString *)tableView:(UITableView *)tableView titleForHeaderInSection:(NSInteger)section
-{
-    switch (section) {
-        case 0: return @"Folder Theme";
-        case 1: return @"Plist Theme";
-        case 2: return @"Files";
-        default: return nil;
-    }
-}
-
-- (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
-{
-    if (section == 0) {
-        return @"Only icons with matching bundle IDs change. Missing apps keep their stock icon.";
-    }
-    if (section == 1) {
-        return @"Use a binary plist when you want one portable file instead of a folder of PNGs.";
-    }
-    return nil;
-}
-
-- (UITableViewCell *)tableView:(UITableView *)tableView
-         cellForRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"guide"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle
-                                      reuseIdentifier:@"guide"];
-        cell.detailTextLabel.numberOfLines = 0;
-    }
-    cell.accessoryType = UITableViewCellAccessoryNone;
-    cell.textLabel.textColor = UIColor.labelColor;
-    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-
-    if (indexPath.section == 0) {
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.textLabel.text = @"PNG Files";
-        cell.detailTextLabel.text =
-            @"Make a folder containing PNG files named by app bundle ID:\n"
-             "com.apple.mobilesafari.png\n"
-             "com.apple.MobileSMS.png\n"
-             "com.apple.mobiletimer.png";
-    } else if (indexPath.section == 1) {
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.textLabel.text = @"Bundle ID → PNG Data";
-        cell.detailTextLabel.text =
-            @"Make a dictionary plist. Each key is a bundle ID. Each value is raw PNG data. "
-             "Cyanide imports the plist and copies it into Documents/Themes.";
-    } else {
-        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-        if (indexPath.row == 0) {
-            cell.textLabel.text = @"Share Sample Theme Plist";
-            cell.detailTextLabel.text = @"Exports a small binary plist template with example bundle IDs.";
-        } else if (indexPath.row == 1) {
-            cell.textLabel.text = @"Share iOS 6 Theme Plist";
-            cell.detailTextLabel.text = @"Exports the iOS 6 Theme plist. Icons by zagnut531/iOS-6-Icons.";
-        } else {
-            cell.textLabel.text = @"Share App Info.plist";
-            cell.detailTextLabel.text = @"Exports Cyanide's bundled Info.plist for reference.";
-        }
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    }
-    return cell;
-}
-
-- (NSData *)sampleIconPNGWithText:(NSString *)text color:(UIColor *)color
-{
-    CGSize size = CGSizeMake(120.0, 120.0);
-    UIGraphicsImageRendererFormat *format = [UIGraphicsImageRendererFormat defaultFormat];
-    format.scale = 1.0;
-    format.opaque = NO;
-    UIGraphicsImageRenderer *renderer = [[UIGraphicsImageRenderer alloc] initWithSize:size
-                                                                               format:format];
-    UIImage *image = [renderer imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
-        CGRect rect = CGRectMake(0.0, 0.0, size.width, size.height);
-        [[UIBezierPath bezierPathWithRoundedRect:rect cornerRadius:27.0] addClip];
-        [color setFill];
-        UIRectFill(rect);
-
-        NSDictionary *attrs = @{
-            NSFontAttributeName: [UIFont systemFontOfSize:48.0 weight:UIFontWeightBold],
-            NSForegroundColorAttributeName: UIColor.whiteColor,
-        };
-        CGSize textSize = [text sizeWithAttributes:attrs];
-        CGRect textRect = CGRectMake((size.width - textSize.width) / 2.0,
-                                     (size.height - textSize.height) / 2.0,
-                                     textSize.width,
-                                     textSize.height);
-        [text drawInRect:textRect withAttributes:attrs];
-    }];
-    return UIImagePNGRepresentation(image);
-}
-
-- (NSURL *)writeSamplePlist:(NSError **)error
-{
-    NSData *safari = [self sampleIconPNGWithText:@"S"
-                                           color:[UIColor colorWithRed:0.05 green:0.45 blue:0.95 alpha:1.0]];
-    NSData *sms = [self sampleIconPNGWithText:@"M"
-                                        color:[UIColor colorWithRed:0.10 green:0.65 blue:0.25 alpha:1.0]];
-    NSDictionary *plist = @{
-        @"com.apple.mobilesafari": safari ?: [NSData data],
-        @"com.apple.MobileSMS": sms ?: [NSData data],
-    };
-    NSData *data = [NSPropertyListSerialization dataWithPropertyList:plist
-                                                              format:NSPropertyListBinaryFormat_v1_0
-                                                             options:0
-                                                               error:error];
-    if (!data) return nil;
-
-    NSURL *url = [NSURL fileURLWithPath:
-        [NSTemporaryDirectory() stringByAppendingPathComponent:@"CyanideThemeTemplate.plist"]];
-    if (![data writeToURL:url options:NSDataWritingAtomic error:error]) return nil;
-    return url;
-}
-
-- (NSURL *)copyBuiltInIOS6Plist:(NSError **)error
-{
-    NSString *src = [[NSBundle mainBundle] pathForResource:@"Themes-iOS6" ofType:@"plist"];
-    if (!src) {
-        if (error) {
-            *error = [NSError errorWithDomain:@"CyanideThemerGuide"
-                                         code:1
-                                     userInfo:@{NSLocalizedDescriptionKey: @"Bundled iOS 6 plist was not found."}];
-        }
-        return nil;
-    }
-
-    NSURL *dst = [NSURL fileURLWithPath:
-        [NSTemporaryDirectory() stringByAppendingPathComponent:@"Cyanide-iOS6-Theme.plist"]];
-    NSFileManager *fm = NSFileManager.defaultManager;
-    if ([fm fileExistsAtPath:dst.path]) {
-        [fm removeItemAtURL:dst error:nil];
-    }
-    if (![fm copyItemAtURL:[NSURL fileURLWithPath:src] toURL:dst error:error]) return nil;
-    return dst;
-}
-
-- (NSURL *)copyAppInfoPlist:(NSError **)error
-{
-    NSString *src = [[NSBundle mainBundle] pathForResource:@"Info" ofType:@"plist"];
-    if (!src) {
-        if (error) {
-            *error = [NSError errorWithDomain:@"CyanideThemerGuide"
-                                         code:2
-                                     userInfo:@{NSLocalizedDescriptionKey: @"Bundled Info.plist was not found."}];
-        }
-        return nil;
-    }
-
-    NSURL *dst = [NSURL fileURLWithPath:
-        [NSTemporaryDirectory() stringByAppendingPathComponent:@"Cyanide-Info.plist"]];
-    NSFileManager *fm = NSFileManager.defaultManager;
-    if ([fm fileExistsAtPath:dst.path]) {
-        [fm removeItemAtURL:dst error:nil];
-    }
-    if (![fm copyItemAtURL:[NSURL fileURLWithPath:src] toURL:dst error:error]) return nil;
-    return dst;
-}
-
-- (void)dismissGuide
-{
-    [self dismissViewControllerAnimated:YES completion:nil];
-}
-
-- (void)shareURL:(NSURL *)url sourceView:(UIView *)sourceView
-{
-    UIActivityViewController *vc = [[UIActivityViewController alloc] initWithActivityItems:@[url]
-                                                                     applicationActivities:nil];
-    UIView *anchor = sourceView ?: self.view;
-    vc.popoverPresentationController.sourceView = anchor;
-    vc.popoverPresentationController.sourceRect = anchor.bounds;
-    [self presentViewController:vc animated:YES completion:nil];
-}
-
-- (void)showExportError:(NSError *)error
-{
-    UIAlertController *ac = [UIAlertController alertControllerWithTitle:@"Export Failed"
-                                                                message:error.localizedDescription ?: @"Could not write the plist."
-                                                         preferredStyle:UIAlertControllerStyleAlert];
-    [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-    [self presentViewController:ac animated:YES completion:nil];
-}
-
-- (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath
-{
-    [tableView deselectRowAtIndexPath:indexPath animated:YES];
-    if (indexPath.section != 2) return;
-
-    NSError *error = nil;
-    NSURL *url = nil;
-    if (indexPath.row == 0) {
-        url = [self writeSamplePlist:&error];
-    } else if (indexPath.row == 1) {
-        url = [self copyBuiltInIOS6Plist:&error];
-    } else {
-        url = [self copyAppInfoPlist:&error];
-    }
-    if (!url) {
-        [self showExportError:error];
-        return;
-    }
-
-    UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-    [self shareURL:url sourceView:cell.contentView ?: tableView];
-}
-
-@end
 
 @implementation SettingsViewController
 
@@ -3947,7 +3167,6 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     }
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"toggle"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"stepper"];
-    [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"slider"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"segmented"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"action"];
     [self.tableView registerClass:UITableViewCell.class forCellReuseIdentifier:@"button"];
@@ -3962,67 +3181,6 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
                                              selector:@selector(cleanupStateDidChange:)
                                                  name:kSettingsCleanupStateDidChangeNotification
                                                object:nil];
-    [[NSNotificationCenter defaultCenter] addObserver:self
-                                             selector:@selector(patreonStatusDidChange:)
-                                                 name:kCyanidePatreonStatusDidChangeNotification
-                                               object:nil];
-
-    // Best-effort background refresh of cached patron status when settings
-    // opens. A cancelled / expired pledge silently flips the gate off here.
-    if (!self.detailMode && cyanide_patreon_is_linked()) {
-        cyanide_patreon_refresh(nil);
-    }
-
-    // Always-visible Respring button in the nav bar (top-right) so the user
-    // doesn't have to scroll down to the Clean Up section to respring.
-    // Mirrors the same flow used by the Clean Up alert: prepare → present the
-    // existing WKWebView-based respring payload.
-    if (!self.detailMode) {
-        UIImage *icon = [UIImage systemImageNamed:@"arrow.clockwise.circle"];
-        UIBarButtonItem *respringItem = [[UIBarButtonItem alloc] initWithImage:icon
-                                                                          style:UIBarButtonItemStylePlain
-                                                                         target:self
-                                                                         action:@selector(navRespringTapped)];
-        respringItem.accessibilityLabel = @"Respring";
-        self.navigationItem.rightBarButtonItem = respringItem;
-    }
-}
-
-- (void)navRespringTapped
-{
-    UIAlertController *ac = [UIAlertController
-        alertControllerWithTitle:@"Respring?"
-                         message:@"SpringBoard will restart. Any unsaved live state will be reset."
-                  preferredStyle:UIAlertControllerStyleAlert];
-    [ac addAction:[UIAlertAction actionWithTitle:@"Cancel"
-                                           style:UIAlertActionStyleCancel
-                                         handler:nil]];
-    __weak typeof(self) weakSelf = self;
-    [ac addAction:[UIAlertAction actionWithTitle:@"Respring"
-                                           style:UIAlertActionStyleDestructive
-                                         handler:^(UIAlertAction *_) {
-        dispatch_async(dispatch_get_global_queue(0, 0), ^{
-            if (__sync_lock_test_and_set(&g_settings_actions_running, 1)) {
-                printf("[SETTINGS] nav respring blocked: actions already running\n");
-                return;
-            }
-            __sync_lock_test_and_set(&g_settings_respring_cleanup_running, 1);
-            settings_notify_cleanup_state_changed();
-            @try {
-                settings_prepare_for_respring_sync();
-            } @finally {
-                __sync_lock_release(&g_settings_actions_running);
-                __sync_lock_release(&g_settings_respring_cleanup_running);
-                settings_notify_cleanup_state_changed();
-            }
-            dispatch_async(dispatch_get_main_queue(), ^{
-                __strong typeof(weakSelf) strongSelf = weakSelf;
-                if (!strongSelf) return;
-                settings_show_respring_overlay(strongSelf);
-            });
-        });
-    }]];
-    settings_present_controller(ac, self);
 }
 
 - (void)cleanupStateDidChange:(NSNotification *)note
@@ -4095,44 +3253,9 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
 - (void)viewDidAppear:(BOOL)animated
 {
     [super viewDidAppear:animated];
-    [self presentPowercuffNominalNoticeIfNeeded];
     if (!self.pendingManualActionsReload) return;
     self.pendingManualActionsReload = NO;
     [self reloadManualActions];
-}
-
-- (void)presentPowercuffNominalNoticeIfNeeded
-{
-    if (!self.detailMode || self.underlyingSection != SectionPowercuff) return;
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    if ([d boolForKey:kSettingsPowercuffNominalNoticeShown]) return;
-
-    NSString *level = [d stringForKey:kSettingsPowercuffLevel] ?: @"nominal";
-    BOOL alreadyNominal = [level isEqualToString:@"nominal"];
-    NSString *message = @"Powercuff now defaults to Nominal.\n\nLight, Moderate, and Heavy intentionally underclock the CPU. That means lag or slower app launches can happen, especially on older devices. The lag means Powercuff is working, but those levels may be too slow for comfortable day-to-day use.\n\nUse Nominal for daily use, then raise it only when you want stronger throttling.";
-
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Powercuff Level"
-                                                                   message:message
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    __weak typeof(self) weakSelf = self;
-    if (!alreadyNominal) {
-        [alert addAction:[UIAlertAction actionWithTitle:@"Use Nominal"
-                                                  style:UIAlertActionStyleDefault
-                                                handler:^(UIAlertAction *_) {
-            NSUserDefaults *defaults = [NSUserDefaults standardUserDefaults];
-            [defaults setObject:@"nominal" forKey:kSettingsPowercuffLevel];
-            [defaults setBool:YES forKey:kSettingsPowercuffNominalNoticeShown];
-            [defaults synchronize];
-            [weakSelf.tableView reloadData];
-        }]];
-    }
-    [alert addAction:[UIAlertAction actionWithTitle:alreadyNominal ? @"OK" : @"Keep Current"
-                                             style:UIAlertActionStyleCancel
-                                           handler:^(UIAlertAction *_) {
-        [d setBool:YES forKey:kSettingsPowercuffNominalNoticeShown];
-        [d synchronize];
-    }]];
-    [self presentViewController:alert animated:YES completion:nil];
 }
 
 - (void)remoteCallStateDidChange:(NSNotification *)notification
@@ -4215,6 +3338,113 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     ];
 }
 
+- (NSArray<NSDictionary *> *)atriaLiteRows
+{
+    return @[
+        @{ @"kind": @"stepper", @"key": kSettingsAtriaLiteDockIcons,  @"title": @"Dock icons", @"min": @1, @"max": @12, @"default": @(kAtriaLiteDefaultDockIcons),
+           @"subtitle": @"Number of icons in the dock (1-12). Values above 7 go very small; pair with a reduced icon scale." },
+        @{ @"kind": @"stepper", @"key": kSettingsAtriaLiteCols,       @"title": @"Home columns", @"min": @1, @"max": @12, @"default": @(kAtriaLiteDefaultCols),
+           @"subtitle": @"Icon columns per home screen page (1-12)." },
+        @{ @"kind": @"stepper", @"key": kSettingsAtriaLiteRows,       @"title": @"Home rows", @"min": @1, @"max": @12, @"default": @(kAtriaLiteDefaultRows),
+           @"subtitle": @"Icon rows per home screen page (1-12)." },
+        @{ @"kind": @"stepper", @"key": kSettingsAtriaLiteIconScale,  @"title": @"Icon scale (%)", @"min": @20, @"max": @200, @"default": @(kAtriaLiteDefaultIconScale),
+           @"subtitle": @"Scales loaded icon image views after the grid is applied (20-200%). New pages may need Apply again. Below 60% icons become very hard to tap." },
+        @{ @"kind": @"stepper", @"key": kSettingsAtriaLiteIconOffsetY, @"title": @"Icon vertical offset", @"min": @(-120), @"max": @120, @"default": @(kAtriaLiteDefaultIconOffsetY),
+           @"subtitle": @"Moves loaded icon images up (negative) or down (positive) after layout, in points (-120 to +120)." },
+        @{ @"kind": @"toggle",  @"key": kSettingsAtriaLiteHideLabels, @"title": @"Hide icon labels" },
+        @{ @"kind": @"button",  @"title": @"Apply Now", @"action": @"atria-apply",
+           @"subtitle": @"Apply current grid and icon settings to SpringBoard immediately without a respring." },
+        @{ @"kind": @"button",  @"title": @"Reset Atria Defaults", @"action": @"atria-reset" },
+    ];
+}
+
+- (NSArray<NSDictionary *> *)customIconsRows
+{
+    return @[
+        @{ @"kind": @"info",
+           @"title": @"How to add icons",
+           @"subtitle": @"Place PNG files named by bundle ID into the CustomIconsLite/ folder inside the Cyanide app bundle, or at /var/mobile/Library/Cyanide/CustomIconsLite/. Example: com.apple.Preferences.png. Control Center modules use their module identifier, e.g. com.apple.control-center.BrightnessModule.png or just Brightness.png." },
+        @{ @"kind": @"button",
+           @"title": @"Apply Custom Icons",
+           @"action": @"custicons-apply",
+           @"subtitle": @"Replaces icon images for all matching Apple apps and Control Center modules immediately." },
+        @{ @"kind": @"button",
+           @"title": @"Reset to Stock Icons",
+           @"action": @"custicons-reset",
+           @"subtitle": @"Restores original icon images for all patched apps and CC modules." },
+    ];
+}
+
+- (NSArray<NSDictionary *> *)iconShapesRows
+{
+    return @[
+        @{ @"kind": @"segmented",
+           @"key":  kSettingsIconShapesShape,
+           @"title": @"Shape",
+           @"subtitle": @"Shape applied to all home screen and dock icon image layers.",
+           @"options": @[@"Squircle", @"Circle", @"Square", @"Rounded", @"Diamond", @"Star", @"Shield", @"Teardrop"] },
+        @{ @"kind": @"stepper",
+           @"key":  kSettingsIconShapesCornerPct,
+           @"title": @"Corner radius (%)",
+           @"min": @0, @"max": @50, @"default": @25,
+           @"subtitle": @"Used only when Rounded is selected. 0 = square, 50 = circle." },
+        @{ @"kind": @"button",
+           @"title": @"Apply Shape",
+           @"action": @"iconshapes-apply",
+           @"subtitle": @"Masks all currently loaded icon image layers with the selected shape." },
+        @{ @"kind": @"button",
+           @"title": @"Reset to Squircle",
+           @"action": @"iconshapes-reset",
+           @"subtitle": @"Removes shape masks and restores stock iOS squircle corners." },
+    ];
+}
+
+- (NSArray<NSDictionary *> *)doodleLiteRows
+{
+    return @[
+        @{ @"kind": @"toggle", @"key": kSettingsDoodleLiteEnabled, @"title": @"Enable Doodle Lite",
+           @"subtitle": @"Show the draw-to-unlock canvas on the lock screen." },
+        @{ @"kind": @"stepper", @"key": kSettingsDoodleLiteThreshold,
+           @"title": @"Match sensitivity", @"min": @1, @"max": @10, @"default": @5,
+           @"subtitle": @"How closely your draw must match the stored gesture (1=strict, 10=loose)." },
+        @{ @"kind": @"button", @"title": @"Install Canvas Now", @"action": @"doodle-start",
+           @"subtitle": @"Injects the doodle canvas into SpringBoard immediately. Lock your device to try it." },
+        @{ @"kind": @"button", @"title": @"Record Gesture", @"action": @"doodle-record",
+           @"subtitle": @"Your next draw on the canvas will be saved as the unlock gesture." },
+        @{ @"kind": @"button", @"title": @"Remove Canvas", @"action": @"doodle-stop",
+           @"subtitle": @"Hide and remove the doodle canvas from the lock screen." },
+    ];
+}
+
+- (NSArray<NSDictionary *> *)syscolpatcherRows
+{
+    return @[
+        // Preset: choose a named tint mode applied to systemBlue/Accent/Tint
+        @{ @"kind": @"segmented",
+           @"key":  kSettingsSysColPatcherPreset,
+           @"title": @"Preset",
+           @"subtitle": @"Quick presets that patch systemBlueColor + systemTintColor together. Custom lets you pick individual colors below.",
+           @"options": @[@"Stock", @"Rose", @"Mint", @"Gold", @"Lavender", @"Custom"] },
+
+        // Per-color tint hex string (used when preset=Custom)
+        @{ @"kind": @"textfield",
+           @"key":  kSettingsSysColPatcherTint,
+           @"title": @"Custom tint hex",
+           @"subtitle": @"Hex color for systemBlue / systemTint in Custom mode. Format: RRGGBB or RRGGBBAA (e.g. FF3366 or FF336680). Applied to both light and dark.",
+           @"placeholder": @"e.g. FF3366" },
+
+        @{ @"kind": @"button",
+           @"title": @"Apply Color Patch",
+           @"action": @"syscol-apply",
+           @"subtitle": @"Patches systemBlueColor and systemTintColor in SpringBoard immediately. No respring needed." },
+
+        @{ @"kind": @"button",
+           @"title": @"Reset Colors",
+           @"action": @"syscol-reset",
+           @"subtitle": @"Restores all patched colors to their original UIKit values." },
+    ];
+}
+
 - (NSArray<NSDictionary *> *)powercuffRows
 {
     return @[
@@ -4235,42 +3465,42 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     return @[
         @{ @"kind": @"stepper",
            @"key": kSettingsNanoMaxPairing,
-           @"title": @"watchOS Pairing Limit",
-           @"subtitle": @"Highest watchOS pairing generation this iPhone will accept. 99 raises the phone-side ceiling for newer watchOS releases.",
+           @"title": @"Max Allowed Pairing Version",
+           @"subtitle": @"Highest watchOS pairing version this iPhone will accept. Raise this to pair a NEWER watch on this iPhone. (Apple defaults: 24 on iOS 18, 25 on iOS 26.)",
            @"min": @(kNanoUIRowMin),
            @"max": @(kNanoUIRowMax),
            @"default": @(kNanoDefaultMaxPairing) },
 
         @{ @"kind": @"stepper",
            @"key": kSettingsNanoMinPairing,
-           @"title": @"Setup Protocol Floor",
-           @"subtitle": @"Lowest pairing setup generation this iPhone will accept. Keep this at 23 so generation-23 setup messages are not rejected.",
+           @"title": @"Min Required Pairing Version",
+           @"subtitle": @"Lowest version this iPhone will accept from any paired watch. Lower this only to pair OLDER watches Apple no longer lists as supported. (Apple defaults: 23 on iOS 18, 24 on iOS 26.)",
            @"min": @(kNanoUIRowMin),
            @"max": @(kNanoUIRowMax),
            @"default": @(kNanoDefaultMinPairing) },
 
         @{ @"kind": @"stepper",
            @"key": kSettingsNanoMinPairingChipID,
-           @"title": @"Legacy Chip Floor",
-           @"subtitle": @"Leave this alone unless you are trying to pair an old S-chip watch, such as a Series 3.",
+           @"title": @"Min Pairing Version (per S-chip)",
+           @"subtitle": @"Per-chip lower gate. Apple uses this to drop legacy S-chip watches (e.g. Series 3/S3) below a certain compatibility version. Stock: 10. Lower only when reviving an old watch model.",
            @"min": @(kNanoUIRowMin),
            @"max": @(kNanoUIRowMax),
            @"default": @(kNanoDefaultMinPairingChipID) },
 
         @{ @"kind": @"stepper",
            @"key": kSettingsNanoMinQuickSwitch,
-           @"title": @"Multi-Watch Switching",
-           @"subtitle": @"Leave this alone unless switching between multiple older paired watches is not working.",
+           @"title": @"Min Quick Switch Version",
+           @"subtitle": @"Lowest version a watch can be to participate in Apple Watch quick-switch (multiple paired watches). Stock: 6. Independent from the Min Required Pairing gate.",
            @"min": @(kNanoUIRowMin),
            @"max": @(kNanoUIRowMax),
            @"default": @(kNanoDefaultMinQuickSwitch) },
 
         @{ @"kind": @"button",
-           @"title": @"Load Saved Override",
+           @"title": @"Load Current Override From Device",
            @"action": @"nano-load" },
 
         @{ @"kind": @"button",
-           @"title": @"Use watchOS Range 99/23/10/6",
+           @"title": @"Preset: Pair a Newer WatchOS",
            @"action": @"nano-preset-newer" },
 
         @{ @"kind": @"button",
@@ -4289,33 +3519,11 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     return @[];
 }
 
-- (NSArray<NSDictionary *> *)layoutExtrasRows
-{
-    return @[
-        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraLeft,
-           @"title": @"Home extra left",   @"min": @0,  @"max": @300, @"step": @1, @"unit": @"pt", @"default": @0 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraRight,
-           @"title": @"Home extra right",  @"min": @0,  @"max": @300, @"step": @1, @"unit": @"pt", @"default": @0 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraTop,
-           @"title": @"Home extra top",    @"min": @0,  @"max": @400, @"step": @1, @"unit": @"pt", @"default": @0 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeExtraBottom,
-           @"title": @"Home extra bottom", @"min": @0,  @"max": @400, @"step": @1, @"unit": @"pt", @"default": @0 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutDockExtraHorizontal,
-           @"title": @"Dock extra horizontal", @"min": @0,  @"max": @200, @"step": @1, @"unit": @"pt", @"default": @0 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutHomeScalePct,
-           @"title": @"Home icon scale",   @"min": @25, @"max": @250, @"step": @1, @"unit": @"%", @"default": @100 },
-        @{ @"kind": @"slider", @"key": kSettingsLayoutDockScalePct,
-           @"title": @"Dock icon scale",   @"min": @25, @"max": @250, @"step": @1, @"unit": @"%", @"default": @100 },
-    ];
-}
-
 - (NSArray<NSDictionary *> *)statbarRows
 {
     return @[
-        @{ @"kind": @"toggle", @"key": kSettingsStatBarCelsius,     @"title": @"Celsius" },
-        @{ @"kind": @"toggle", @"key": kSettingsStatBarShowCPU,     @"title": @"Show CPU %" },
-        @{ @"kind": @"toggle", @"key": kSettingsStatBarShowLabels,  @"title": @"Show CPU / RAM labels" },
-        @{ @"kind": @"toggle", @"key": kSettingsStatBarShowNet,     @"title": @"Show network speed" },
+        @{ @"kind": @"toggle", @"key": kSettingsStatBarCelsius, @"title": @"Celsius" },
+        @{ @"kind": @"toggle", @"key": kSettingsStatBarHideNet, @"title": @"Hide network speed" },
     ];
 }
 
@@ -4336,41 +3544,10 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
 {
     return @[
         @{ @"kind": @"button",
-           @"title": @"Test: Poll Daemon & Show Banner",
-           @"subtitle": @"Runs the live imagent detection path once. Banner shows the result; the [TYPEBANNER] log lines explain what was/wasn't found.",
+           @"title": @"Test: Poll Messages & Show Banner",
+           @"subtitle": @"Runs the real detection path once. Opens Messages first (or pin a typing thread), then tap. Banner shows the result; the [TYPEBANNER] log lines explain what was/wasn't found.",
            @"action": @"typebanner-test" },
     ];
-}
-
-- (NSArray<NSDictionary *> *)themerRows
-{
-    BOOL hasSelection = settings_themer_has_selected_theme();
-    NSString *selected = settings_themer_selected_theme_display_name();
-    NSMutableArray<NSDictionary *> *rows = [NSMutableArray arrayWithArray:@[
-        @{ @"kind": @"info",
-           @"title": @"Selected Theme",
-           @"subtitle": hasSelection ? selected : @"None selected. Pick a theme before running Cyanide Themer." },
-
-        @{ @"kind": @"button",
-           @"title": [selected isEqualToString:@"iOS 6 Theme"]
-                ? @"iOS 6 Theme ✓" : @"Use iOS 6 Theme",
-           @"action": @"themer-select-ios6" },
-
-        @{ @"kind": @"button",
-           @"title": @"Import Custom Theme…",
-           @"action": @"themer-import" },
-
-        @{ @"kind": @"button",
-           @"title": @"Theme Format Guide",
-           @"action": @"themer-guide" },
-    ]];
-    if (hasSelection) {
-        [rows addObject:@{ @"kind": @"button",
-                           @"title": @"Clear Selected Theme",
-                           @"action": @"themer-clear",
-                           @"destructive": @YES }];
-    }
-    return rows;
 }
 
 + (NSArray<NSDictionary<NSString *, NSString *> *> *)settingsSummaryForSection:(NSInteger)section
@@ -4382,34 +3559,27 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         [out addObject:@{@"title": @"Home columns",     @"value": [@([d integerForKey:kSettingsSBCCols])        stringValue]}];
         [out addObject:@{@"title": @"Home rows",        @"value": [@([d integerForKey:kSettingsSBCRows])        stringValue]}];
         [out addObject:@{@"title": @"Hide icon labels", @"value": [d boolForKey:kSettingsSBCHideLabels] ? @"On" : @"Off"}];
-    } else if (section == SectionLayoutExtras) {
-        [out addObject:@{@"title": @"Home extra L/R",   @"value": [NSString stringWithFormat:@"%ld/%ld",
-                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraLeft],
-                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraRight]]}];
-        [out addObject:@{@"title": @"Home extra T/B",   @"value": [NSString stringWithFormat:@"%ld/%ld",
-                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraTop],
-                                                                    (long)[d integerForKey:kSettingsLayoutHomeExtraBottom]]}];
-        [out addObject:@{@"title": @"Dock extra H",     @"value": [@([d integerForKey:kSettingsLayoutDockExtraHorizontal]) stringValue]}];
-        [out addObject:@{@"title": @"Home scale %",     @"value": [@([d integerForKey:kSettingsLayoutHomeScalePct]) stringValue]}];
-        [out addObject:@{@"title": @"Dock scale %",     @"value": [@([d integerForKey:kSettingsLayoutDockScalePct]) stringValue]}];
+    } else if (section == SectionAtriaLite) {
+        [out addObject:@{@"title": @"Dock icons",       @"value": [@([d integerForKey:kSettingsAtriaLiteDockIcons]) stringValue]}];
+        [out addObject:@{@"title": @"Home columns",     @"value": [@([d integerForKey:kSettingsAtriaLiteCols])      stringValue]}];
+        [out addObject:@{@"title": @"Home rows",        @"value": [@([d integerForKey:kSettingsAtriaLiteRows])      stringValue]}];
+        [out addObject:@{@"title": @"Icon scale",       @"value": [NSString stringWithFormat:@"%ld%%", (long)[d integerForKey:kSettingsAtriaLiteIconScale]]}];
+        [out addObject:@{@"title": @"Icon offset",      @"value": [@([d integerForKey:kSettingsAtriaLiteIconOffsetY]) stringValue]}];
+        [out addObject:@{@"title": @"Hide icon labels", @"value": [d boolForKey:kSettingsAtriaLiteHideLabels] ? @"On" : @"Off"}];
     } else if (section == SectionStatBar) {
-        [out addObject:@{@"title": @"Celsius",             @"value": [d boolForKey:kSettingsStatBarCelsius]    ? @"On" : @"Off"}];
-        [out addObject:@{@"title": @"Show CPU %",          @"value": [d boolForKey:kSettingsStatBarShowCPU]    ? @"On" : @"Off"}];
-        [out addObject:@{@"title": @"Show CPU/RAM labels", @"value": [d boolForKey:kSettingsStatBarShowLabels] ? @"On" : @"Off"}];
-        [out addObject:@{@"title": @"Show net speed",      @"value": [d boolForKey:kSettingsStatBarShowNet]    ? @"On" : @"Off"}];
+        [out addObject:@{@"title": @"Celsius",          @"value": [d boolForKey:kSettingsStatBarCelsius] ? @"On" : @"Off"}];
+        [out addObject:@{@"title": @"Hide net speed",   @"value": [d boolForKey:kSettingsStatBarHideNet]  ? @"On" : @"Off"}];
     } else if (section == SectionRSSI) {
         [out addObject:@{@"title": @"WiFi (bar count)", @"value": [d boolForKey:kSettingsRSSIDisplayWifi] ? @"On" : @"Off"}];
         [out addObject:@{@"title": @"Cellular (dBm)",   @"value": [d boolForKey:kSettingsRSSIDisplayCell] ? @"On" : @"Off"}];
     } else if (section == SectionPowercuff) {
-        NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"nominal";
+        NSString *lvl = [d stringForKey:kSettingsPowercuffLevel] ?: @"heavy";
         [out addObject:@{@"title": @"Level", @"value": lvl}];
     } else if (section == SectionNanoRegistry) {
-        [out addObject:@{@"title": @"watchOS limit",      @"value": [@([d integerForKey:kSettingsNanoMaxPairing])       stringValue]}];
-        [out addObject:@{@"title": @"Setup floor",        @"value": [@([d integerForKey:kSettingsNanoMinPairing])       stringValue]}];
-        [out addObject:@{@"title": @"Legacy chip floor",  @"value": [@([d integerForKey:kSettingsNanoMinPairingChipID]) stringValue]}];
-        [out addObject:@{@"title": @"Multi-watch switch", @"value": [@([d integerForKey:kSettingsNanoMinQuickSwitch])   stringValue]}];
-    } else if (section == SectionThemer) {
-        [out addObject:@{@"title": @"Theme", @"value": settings_themer_selected_theme_display_name()}];
+        [out addObject:@{@"title": @"Max pairing",        @"value": [@([d integerForKey:kSettingsNanoMaxPairing])       stringValue]}];
+        [out addObject:@{@"title": @"Min pairing",        @"value": [@([d integerForKey:kSettingsNanoMinPairing])       stringValue]}];
+        [out addObject:@{@"title": @"Min (chip-ID)",      @"value": [@([d integerForKey:kSettingsNanoMinPairingChipID]) stringValue]}];
+        [out addObject:@{@"title": @"Min quick-switch",   @"value": [@([d integerForKey:kSettingsNanoMinQuickSwitch])   stringValue]}];
     }
     return out;
 }
@@ -4419,16 +3589,19 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     switch (s) {
         case SectionLaunch:    return self.launchRows;
         case SectionSBC:       return self.sbcRows;
+        case SectionAtriaLite: return self.atriaLiteRows;
         case SectionDarkSwordTweaks: return self.darkSwordTweakRows;
-        case SectionLayoutExtras: return self.layoutExtrasRows;
         case SectionOTA:       return self.otaRows;
         case SectionNanoRegistry: return self.nanoRegistryRows;
-        case SectionThemer:  return self.themerRows;
         case SectionPowercuff: return self.powercuffRows;
         case SectionStatBar:   return self.statbarRows;
         case SectionRSSI:      return self.rssiRows;
         case SectionAxonLite:  return self.axonLiteRows;
         case SectionTypeBanner: return self.typebannerRows;
+        case SectionSysColPatcher: return self.syscolpatcherRows;
+        case SectionDoodleLite:    return self.doodleLiteRows;
+        case SectionIconShapes:    return self.iconShapesRows;
+        case SectionCustomIcons:   return self.customIconsRows;
         default: return @[];
     }
 }
@@ -4444,14 +3617,17 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     return @[
         @{ @"title": @"Launch Options",     @"icon": @"bolt.fill",                          @"color": [UIColor systemRedColor],    @"section": @(SectionLaunch) },
         @{ @"title": @"SBCustomizer",       @"icon": @"square.grid.3x3.fill",                @"color": [UIColor systemBlueColor],   @"section": @(SectionSBC) },
+        @{ @"title": @"Atria Lite",         @"icon": @"rectangle.grid.3x2.fill",             @"color": [UIColor systemGreenColor],  @"section": @(SectionAtriaLite) },
         @{ @"title": @"StatBar",            @"icon": @"thermometer.medium",                  @"color": [UIColor systemRedColor],    @"section": @(SectionStatBar) },
-        @{ @"title": @"Signal Display",     @"icon": @"antenna.radiowaves.left.and.right",   @"color": [UIColor systemBlueColor],   @"section": @(SectionRSSI), @"experimental": @YES },
+        @{ @"title": @"Signal Display",     @"icon": @"antenna.radiowaves.left.and.right",   @"color": [UIColor systemBlueColor],   @"section": @(SectionRSSI) },
         @{ @"title": @"Axon Lite",          @"icon": @"bell.badge.fill",                     @"color": [UIColor systemRedColor],    @"section": @(SectionAxonLite) },
-        @{ @"title": @"TypeBanner",         @"icon": @"ellipsis.bubble.fill",                @"color": [UIColor systemTealColor],   @"section": @(SectionTypeBanner), @"experimental": @YES },
-        @{ @"title": @"Cyanide Themer",     @"icon": @"paintpalette.fill",                   @"color": [UIColor systemPinkColor],   @"section": @(SectionThemer) },
+        // @{ @"title": @"TypeBanner",         @"icon": @"ellipsis.bubble.fill",                @"color": [UIColor systemTealColor],   @"section": @(SectionTypeBanner) },
         @{ @"title": @"Powercuff",          @"icon": @"bolt.slash.fill",                     @"color": [UIColor systemOrangeColor], @"section": @(SectionPowercuff) },
         @{ @"title": @"SpringBoard Tweaks", @"icon": @"apps.iphone",                         @"color": [UIColor systemIndigoColor], @"section": @(SectionDarkSwordTweaks) },
-        @{ @"title": @"Home Layout Extras", @"icon": @"square.dashed.inset.filled",          @"color": [UIColor systemPurpleColor], @"section": @(SectionLayoutExtras) },
+        @{ @"title": @"Color Patcher",      @"icon": @"paintpalette.fill",                   @"color": [UIColor systemPinkColor],   @"section": @(SectionSysColPatcher) },
+        @{ @"title": @"Doodle Lite",         @"icon": @"hand.draw.fill",                      @"color": [UIColor systemTealColor],   @"section": @(SectionDoodleLite) },
+        @{ @"title": @"Icon Shapes",          @"icon": @"square.on.circle.fill",               @"color": [UIColor systemOrangeColor], @"section": @(SectionIconShapes) },
+        @{ @"title": @"Custom Icons",          @"icon": @"photo.on.rectangle.angled",           @"color": [UIColor systemPurpleColor], @"section": @(SectionCustomIcons) },
     ];
 }
 
@@ -4465,12 +3641,8 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
 
 - (NSArray<NSDictionary *> *)filterBundles:(NSArray<NSDictionary *> *)bundles
 {
-    BOOL experimentalOn = [[NSUserDefaults standardUserDefaults]
-                            boolForKey:kSettingsExperimentalTweaksEnabled]
-                            && cyanide_is_patron();
     NSMutableArray<NSDictionary *> *out = [NSMutableArray array];
     for (NSDictionary *bundle in bundles) {
-        if ([bundle[@"experimental"] boolValue] && !experimentalOn) continue;
         NSInteger sec = [bundle[@"section"] integerValue];
         if ([self rowsForSection:sec].count > 0) {
             [out addObject:bundle];
@@ -4515,24 +3687,10 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
             NSInteger n = (NSInteger)settings_changelog_entries().count;
             return n > 0 ? n + 1 : 0;
         }
-        case RootSectionActions:        return 5;
+        case RootSectionActions:        return 3;
         case RootSectionTweakBundles:   return (NSInteger)self.tweakBundleRows.count;
         case RootSectionSystemBundles:  return (NSInteger)self.systemBundleRows.count;
-        case RootSectionAppIcon:        return 2;
-        case RootSectionDocs:           return 1;
-        case RootSectionPatreon: {
-            // Unlinked users get two rows: "Link" (for people who already have
-            // a Patreon account) and "New to Patreon? Sign Up" (jumps to the
-            // creator page so they can join in Safari first). Without the
-            // sign-up affordance, a first-time user has no obvious way to
-            // discover that they need a Patreon account to begin with.
-            if (!cyanide_patreon_is_linked()) return 2;
-            // Linked-but-not-pledging gets an extra "Join Member Tier" row
-            // so users have an obvious in-app path to upgrade.
-            return cyanide_is_patron() ? 3 : 4;
-        }
         case RootSectionAbout:          return 4;
-        case RootSectionExperimental:   return 1;
         case RootSectionWarning:        return 1;
         case RootSectionCount:          return 0;
     }
@@ -4547,112 +3705,52 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         case RootSectionActions:        return @"Quick Actions";
         case RootSectionTweakBundles:   return self.tweakBundleRows.count   > 0 ? @"Tweaks" : nil;
         case RootSectionSystemBundles:  return self.systemBundleRows.count  > 0 ? @"System" : nil;
-        case RootSectionAppIcon:        return @"App Icon";
-        case RootSectionDocs:           return @"Docs";
-        case RootSectionPatreon:        return @"Patreon";
         case RootSectionAbout:          return @"About";
-        case RootSectionExperimental:   return @"Experimental";
         default:                        return nil;
     }
 }
 
 - (NSString *)tableView:(UITableView *)tableView titleForFooterInSection:(NSInteger)section
 {
-    if (!self.detailMode) {
-        if ((RootSection)section == RootSectionExperimental) {
-            if (!cyanide_is_patron()) {
-                if (cyanide_patreon_is_linked()) {
-                    return @"Cyanide is — and always will be — free. "
-                           @"Experimental tweaks are early-access perks "
-                           @"for Member tier Patreon supporters. Every "
-                           @"one of them eventually graduates into the "
-                           @"public release for everyone. You're linked "
-                           @"as a free Patreon user — join the Member "
-                           @"tier on patreon.com/zeroxjf to get them "
-                           @"now.";
-                }
-                return @"Cyanide is — and always will be — free. "
-                       @"Experimental tweaks are early-access perks "
-                       @"for Member tier Patreon supporters. Every one "
-                       @"of them eventually graduates into the public "
-                       @"release for everyone.\n\nDon't have a Patreon "
-                       @"account yet? Scroll up to the Patreon section "
-                       @"and tap Sign Up to create one and join the "
-                       @"Member tier — then tap Link to connect it.";
-            }
-            return @"⚠️ These tweaks are unfinished and may not work at all "
-                   @"yet. Installing them only adds risk — SpringBoard "
-                   @"crashes, dropped events, layout glitches, battery "
-                   @"drain — with no guaranteed feature in return. Leave "
-                   @"off unless you're a developer actively testing.";
-        }
-        if ((RootSection)section == RootSectionPatreon) {
-            if (!cyanide_patreon_is_linked()) {
-                return @"Cyanide is — and always will be — free. "
-                       @"Linking Patreon supports development and "
-                       @"unlocks early access to experimental tweaks "
-                       @"before they ship in the public release.\n\n"
-                       @"Already have a Patreon account? Tap Link to "
-                       @"sign in. New to Patreon? Tap Sign Up first to "
-                       @"create an account and join the Member tier at "
-                       @"patreon.com/zeroxjf — then come back and tap "
-                       @"Link.\n\nAuth happens in-app; no tokens leave "
-                       @"the device.";
-            }
-            NSString *lastLine = @"";
-            NSDate *last = cyanide_patreon_last_refresh_date();
-            if (last) {
-                NSDateFormatter *df = [[NSDateFormatter alloc] init];
-                df.dateStyle = NSDateFormatterMediumStyle;
-                df.timeStyle = NSDateFormatterShortStyle;
-                lastLine = [NSString stringWithFormat:@"\n\nLast checked %@",
-                            [df stringFromDate:last]];
-            }
-            if (!cyanide_is_patron()) {
-                return [@"Cyanide stays free for everyone. The Member "
-                        @"tier on Patreon gates early access to "
-                        @"experimental tweaks; each one eventually "
-                        @"ships in the public release." stringByAppendingString:lastLine];
-            }
-            return lastLine.length > 2 ? [lastLine substringFromIndex:2] : nil;
-        }
-        return nil;
-    }
+    if (!self.detailMode) return nil;
     NSInteger s = self.underlyingSection;
     if (s == SectionLaunch) {
         return @"kexploit_opa334 runs once per app lifetime. Keep Alive applies only while Cyanide is minimized; an App Switcher kill still terminates the process.";
     }
-    if (s == SectionSBC) {
+    if (s == SectionCustomIcons) {
+        return @"Custom Icons Lite";
+    } else if (s == SectionIconShapes) {
+        return @"Icon Shapes Lite";
+    } else if (s == SectionDoodleLite) {
+        return @"Doodle Lite — Draw to Unlock";
+    } else if (s == SectionSysColPatcher) {
+        return @"System Color Patcher";
+    } else if (s == SectionSBC) {
         return [NSString stringWithFormat:@"Stock iOS defaults: dock %ld, columns %ld, rows %ld.",
                 (long)kSBCDefaultDockIcons, (long)kSBCDefaultCols, (long)kSBCDefaultRows];
     }
+    if (s == SectionAtriaLite) {
+        return @"Atria-inspired tethered layout controls. Changes apply through live SpringBoard layout APIs and reset after SpringBoard reloads, respring, reboot, or cleanup. Icon scale affects loaded icons only.";
+    }
     if (s == SectionDarkSwordTweaks) {
         return @"Imported from DarkSword-Tweaks. These are SpringBoard runtime patches; turning one off only skips future applies.";
-    }
-    if (s == SectionLayoutExtras) {
-        NSInteger major = [[NSProcessInfo processInfo] operatingSystemVersion].majorVersion;
-        if (major >= 26) {
-            return [NSString stringWithFormat:
-                @"Adds extra padding and per-icon scaling on top of the stock home/dock layout.\n\n"
-                @"Running on iOS %ld: the upstream config-mutation path doesn't exist (AMUIInfographIconListLayout has no mutable configuration), so the iOS 26 path instead walks the live SBIconListView/SBIconView hierarchy and adjusts frames + iconImageInfo directly. One-shot at Run; iOS 26 may re-fit on a subsequent layout pass (rotation, page swipe).",
-                (long)major];
-        }
-        return @"Adds extra padding and per-icon scaling on top of the stock home/dock layout. Defaults are zero padding and 100% scale (no change). Toggle Enable on and hit Run to apply; values aren't persisted across respring.";
     }
     if (s == SectionOTA) {
         return @"Edits launchd disabled.plist. A reboot or userspace restart is required for changes to take effect.";
     }
     if (s == SectionNanoRegistry) {
-        return @"Changes the watchOS pairing range saved on this iPhone.\n\n"
-               @"Most people should tap Use watchOS Range 99/23/10/6, then Apply Pairing Override. "
-               @"These are pairing protocol generations, not Apple Watch model numbers. "
-               @"99 raises the watchOS pairing ceiling. 23 keeps the generation-23 setup protocol accepted. "
-               @"10 and 6 leave the legacy chip and multi-watch floors at their normal values.\n\n"
-               @"Apple Watch Ultra 3 cannot pair on iOS versions below 26 at this time.\n\n"
-               @"Respring or reboot after applying before you try to pair.";
+        return @"Writes /var/mobile/Library/Preferences/com.apple.NanoRegistry.plist. "
+               @"Apple's NRPairingCompatibilityVersionInfo reads these four numbers to decide "
+               @"if a paired watch (and its watchOS version) is acceptable.\n\n"
+               @"USE CASE: pair a watch whose pairing-compatibility version is higher than this "
+               @"iPhone's iOS would normally accept (i.e. a newer watchOS on older iOS). Raise "
+               @"\"Max\". Leave the \"Min\" fields alone unless you also need to revive a much "
+               @"older watch.\n\n"
+               @"Respring or reboot after Apply so cfprefsd drops its cache. Stock defaults: "
+               @"iOS 18 = 24/23/10/6, iOS 26 = 25/24/10/6.";
     }
     if (s == SectionPowercuff) {
-        return @"Underclocks the CPU/GPU via thermalmonitord by simulating thermal pressure. Nominal is the daily-use default. Light, Moderate, and Heavy intentionally underclock the CPU more and can make the device feel laggy, especially on older hardware.";
+        return @"Underclocks the CPU/GPU via thermalmonitord by simulating a thermal pressure level. Lasts until reboot. Heavier levels save battery at the cost of responsiveness.";
     }
     if (s == SectionStatBar) {
         return @"Live overlay. When enabled, StatBar keeps a SpringBoard RemoteCall session open and refreshes once per second until toggled off.";
@@ -4664,12 +3762,7 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
         return @"RemoteCall-only Axon port. It uses a live app-side loop rather than substrate hooks, so it lasts for the active Cyanide SpringBoard session.";
     }
     if (s == SectionTypeBanner) {
-        return @"Partial TypeMillennium port. Detection runs against imagent using original-thread RemoteCall probes, while SpringBoard renders a prewarmed banner window.";
-    }
-    if (s == SectionThemer) {
-        return @"Note: Cyanide Themer is still rough around the edges and may be glitchy. It will be iteratively improved to be more stable over time.\n\n"
-               @"Pick a theme before running Cyanide Themer.\n\n"
-               @"Custom themes can be a folder of PNG files named by bundle ID, such as com.apple.mobilesafari.png, or a binary plist mapping bundle IDs to PNG data. Import copies the theme into Cyanide's Documents/Themes folder. Theme Format Guide includes examples and plist exports.";
+        return @"Partial TypeMillennium port. Detection runs against the Messages app's own view hierarchy over RemoteCall and only fires while Messages.app is running. The original system-wide imagent hook needs code injection, which isn't available in this environment.";
     }
     return nil;
 }
@@ -4790,23 +3883,6 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
     if (url) [[UIApplication sharedApplication] openURL:url options:@{} completionHandler:nil];
 }
 
-- (UITableViewCell *)buildDocsCellInTableView:(UITableView *)tableView
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"docs"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"docs"];
-    }
-    cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"book.closed.fill" color:UIColor.systemPurpleColor size:29.0];
-    cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-    cell.textLabel.textColor = UIColor.labelColor;
-    cell.textLabel.text = @"Tweak SDK";
-    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-    cell.detailTextLabel.text = @"How to write Cyanide tweaks";
-    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-    return cell;
-}
-
 - (UITableViewCell *)buildAboutCellAtRow:(NSInteger)row tableView:(UITableView *)tableView
 {
     UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"about"];
@@ -4845,686 +3921,6 @@ static _CyanideMailDelegate *_cyanide_mail_delegate(void) {
 
 - (void)logUploadSwitchChanged:(UISwitch *)sw {
     [[NSUserDefaults standardUserDefaults] setBool:sw.isOn forKey:kSettingsLogUploadEnabled];
-}
-
-- (void)reloadThemerSectionAndQueue
-{
-    settings_mark_tweak_applied(kSettingsThemerEnabled, NO);
-    settings_notify_package_queue_changed_async();
-    if (self.detailMode && self.underlyingSection == SectionThemer) {
-        [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
-                      withRowAnimation:UITableViewRowAnimationAutomatic];
-    } else {
-        [self.tableView reloadData];
-    }
-}
-
-- (void)selectBuiltInIOS6Theme
-{
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    [d setObject:kThemerThemeBuiltinIOS6 forKey:kSettingsThemerThemeID];
-    [d synchronize];
-    log_user("[THEMER] Selected iOS 6 Theme.\n");
-    [self reloadThemerSectionAndQueue];
-}
-
-- (void)clearSelectedTheme
-{
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    [d setObject:kThemerThemeNone forKey:kSettingsThemerThemeID];
-    [d setObject:@"" forKey:kSettingsThemerCustomThemePath];
-    [d setObject:@"" forKey:kSettingsThemerCustomThemeName];
-    if ([d boolForKey:kSettingsThemerEnabled]) {
-        [d setBool:NO forKey:kSettingsThemerEnabled];
-        g_themer_live_stop_requested = 1;
-    }
-    [d synchronize];
-    log_user("[THEMER] Cleared selected theme; Cyanide Themer is no longer queued.\n");
-    [self reloadThemerSectionAndQueue];
-}
-
-- (void)presentThemerFormatGuide
-{
-    ThemerFormatGuideViewController *vc =
-        [[ThemerFormatGuideViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
-    if (self.navigationController) {
-        [self.navigationController pushViewController:vc animated:YES];
-        return;
-    }
-
-    UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
-    vc.navigationItem.leftBarButtonItem =
-        [[UIBarButtonItem alloc] initWithBarButtonSystemItem:UIBarButtonSystemItemDone
-                                                      target:vc
-                                                      action:@selector(dismissGuide)];
-    [self presentViewController:nav animated:YES completion:nil];
-}
-
-- (void)presentThemerImporter
-{
-    UIAlertController *hint = [UIAlertController
-        alertControllerWithTitle:@"Import Theme Folder"
-                         message:@"Navigate into your theme folder so you can see the PNG files inside, then tap Open in the top-right corner to import the folder."
-                  preferredStyle:UIAlertControllerStyleAlert];
-    [hint addAction:[UIAlertAction actionWithTitle:@"Continue" style:UIAlertActionStyleDefault handler:^(UIAlertAction *a) {
-        (void)a;
-        UIDocumentPickerViewController *picker =
-            [[UIDocumentPickerViewController alloc] initForOpeningContentTypes:@[UTTypeFolder, UTTypePropertyList]];
-        picker.delegate = self;
-        picker.allowsMultipleSelection = NO;
-        [self presentViewController:picker animated:YES completion:nil];
-    }]];
-    [hint addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-    [self presentViewController:hint animated:YES completion:nil];
-}
-
-- (BOOL)importThemerFolderAtURL:(NSURL *)url error:(NSError **)error
-{
-    NSFileManager *fm = [NSFileManager defaultManager];
-    NSString *target = settings_themer_imported_theme_dir();
-    NSString *root = settings_themer_documents_theme_root();
-    if (!target || !root) return NO;
-
-    [fm createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:error];
-    if (error && *error) return NO;
-
-    NSArray<NSURL *> *files = [fm contentsOfDirectoryAtURL:url
-                                includingPropertiesForKeys:nil
-                                                   options:0
-                                                     error:error];
-    if (!files) return NO;
-
-    NSMutableArray<NSURL *> *pngs = [NSMutableArray array];
-    for (NSURL *file in files) {
-        if ([file.pathExtension.lowercaseString isEqualToString:@"png"]) {
-            [pngs addObject:file];
-        }
-    }
-    if (pngs.count == 0) return NO;
-
-    [fm removeItemAtPath:target error:nil];
-    [fm createDirectoryAtPath:target withIntermediateDirectories:YES attributes:nil error:error];
-    if (error && *error) return NO;
-    [fm removeItemAtPath:settings_themer_imported_plist_path() error:nil];
-
-    for (NSURL *png in pngs) {
-        NSString *dst = [target stringByAppendingPathComponent:png.lastPathComponent];
-        if (![fm copyItemAtURL:png toURL:[NSURL fileURLWithPath:dst] error:error]) {
-            return NO;
-        }
-    }
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    [d setObject:kThemerThemeCustom forKey:kSettingsThemerThemeID];
-    [d setObject:target forKey:kSettingsThemerCustomThemePath];
-    [d setObject:url.lastPathComponent.length ? url.lastPathComponent : @"Imported Theme"
-          forKey:kSettingsThemerCustomThemeName];
-    [d synchronize];
-    log_user("[THEMER] Imported custom folder theme: %lu PNG file(s).\n",
-             (unsigned long)pngs.count);
-    return YES;
-}
-
-- (BOOL)importThemerPlistAtURL:(NSURL *)url error:(NSError **)error
-{
-    NSDictionary *dict = settings_themer_load_plist_theme(url.path);
-    if (dict.count == 0) return NO;
-
-    NSFileManager *fm = [NSFileManager defaultManager];
-    NSString *root = settings_themer_documents_theme_root();
-    NSString *target = settings_themer_imported_plist_path();
-    if (!root || !target) return NO;
-    [fm createDirectoryAtPath:root withIntermediateDirectories:YES attributes:nil error:error];
-    if (error && *error) return NO;
-    [fm removeItemAtPath:target error:nil];
-    [fm removeItemAtPath:settings_themer_imported_theme_dir() error:nil];
-    if (![fm copyItemAtURL:url toURL:[NSURL fileURLWithPath:target] error:error]) {
-        return NO;
-    }
-
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    [d setObject:kThemerThemeCustom forKey:kSettingsThemerThemeID];
-    [d setObject:target forKey:kSettingsThemerCustomThemePath];
-    [d setObject:url.lastPathComponent.length ? url.lastPathComponent : @"Imported Theme"
-          forKey:kSettingsThemerCustomThemeName];
-    [d synchronize];
-    log_user("[THEMER] Imported custom plist theme: %lu icon entries.\n",
-             (unsigned long)dict.count);
-    return YES;
-}
-
-- (void)documentPicker:(UIDocumentPickerViewController *)controller
-didPickDocumentsAtURLs:(NSArray<NSURL *> *)urls
-{
-    (void)controller;
-    NSURL *url = urls.firstObject;
-    if (!url) return;
-
-    BOOL scoped = [url startAccessingSecurityScopedResource];
-    BOOL isDir = NO;
-    [[NSFileManager defaultManager] fileExistsAtPath:url.path isDirectory:&isDir];
-
-    dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
-        NSError *err = nil;
-        BOOL ok = isDir ? [self importThemerFolderAtURL:url error:&err]
-                        : [self importThemerPlistAtURL:url error:&err];
-        if (scoped) [url stopAccessingSecurityScopedResource];
-
-        dispatch_async(dispatch_get_main_queue(), ^{
-            if (!ok) {
-                NSString *msg = err.localizedDescription ?: @"Choose a folder of bundleID.png files or a binary plist mapping bundle IDs to PNG data.";
-                UIAlertController *ac = [UIAlertController alertControllerWithTitle:@"Theme Import Failed"
-                                                                             message:msg
-                                                                      preferredStyle:UIAlertControllerStyleAlert];
-                [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-                [self presentViewController:ac animated:YES completion:nil];
-                return;
-            }
-            [self reloadThemerSectionAndQueue];
-            NSString *name = settings_themer_selected_theme_display_name();
-            UIAlertController *ac = [UIAlertController
-                alertControllerWithTitle:@"Theme Imported"
-                                 message:[NSString stringWithFormat:@"\"%@\" is now selected. Toggle Cyanide Themer on and tap Run to apply.", name]
-                          preferredStyle:UIAlertControllerStyleAlert];
-            [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [self presentViewController:ac animated:YES completion:nil];
-        });
-    });
-}
-
-// "Classic" alternate icon is registered in Info.plist with CFBundleIconFiles
-// pointing to Cyanide-Classic@{2,3}x.png at the bundle root. Modern is the
-// asset-catalog primary, selected by passing nil to setAlternateIconName:.
-+ (UIImage *)appIconPreviewForStyle:(NSString *)style
-{
-    NSString *name = [style isEqualToString:@"classic"] ? @"preview-classic" : @"preview-modern";
-    UIImage *raw = [UIImage imageNamed:name];
-    if (!raw) return nil;
-    // Render with iOS home-screen corner radius (≈22% of side) so the thumb
-    // matches what users see on SpringBoard. 52pt fits in the default subtitle
-    // cell row height without forcing layout overrides.
-    CGFloat side = 52.0;
-    CGFloat radius = side * 0.22;
-    UIGraphicsImageRendererFormat *fmt = [UIGraphicsImageRendererFormat preferredFormat];
-    UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:CGSizeMake(side, side) format:fmt];
-    return [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
-        UIBezierPath *p = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, side, side)
-                                                      cornerRadius:radius];
-        [p addClip];
-        [raw drawInRect:CGRectMake(0, 0, side, side)];
-    }];
-}
-
-- (NSString *)currentAppIconStyle
-{
-    NSString *alt = [UIApplication sharedApplication].alternateIconName;
-    return [alt isEqualToString:@"Classic"] ? @"classic" : @"modern";
-}
-
-- (UITableViewCell *)buildAppIconCellAtRow:(NSInteger)row tableView:(UITableView *)tableView
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"appicon"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"appicon"];
-        cell.detailTextLabel.numberOfLines = 0;
-    }
-    cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-    cell.textLabel.textColor = UIColor.labelColor;
-    cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-
-    NSString *style = (row == 0) ? @"modern" : @"classic";
-    cell.imageView.image = [SettingsViewController appIconPreviewForStyle:style];
-
-    if (row == 0) {
-        cell.textLabel.text = @"Modern";
-        cell.detailTextLabel.text = @"Default — refreshed v2 mark.";
-    } else {
-        cell.textLabel.text = @"Classic";
-        cell.detailTextLabel.text = @"Original release artwork.";
-    }
-
-    BOOL selected = [[self currentAppIconStyle] isEqualToString:style];
-    cell.accessoryType = selected ? UITableViewCellAccessoryCheckmark : UITableViewCellAccessoryNone;
-    return cell;
-}
-
-- (void)selectAppIconAtRow:(NSInteger)row inTableView:(UITableView *)tableView
-{
-    NSString *style = (row == 0) ? @"modern" : @"classic";
-    if ([[self currentAppIconStyle] isEqualToString:style]) return;
-
-    if (![UIApplication sharedApplication].supportsAlternateIcons) {
-        UIAlertController *ac = [UIAlertController
-            alertControllerWithTitle:@"Can't Change Icon"
-                             message:@"This iOS build doesn't expose alternate icon switching."
-                      preferredStyle:UIAlertControllerStyleAlert];
-        [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
-        [self presentViewController:ac animated:YES completion:nil];
-        return;
-    }
-
-    NSString *altName = [style isEqualToString:@"classic"] ? @"Classic" : nil;
-    [[UIApplication sharedApplication] setAlternateIconName:altName completionHandler:^(NSError * _Nullable error) {
-        if (error) {
-            printf("[SETTINGS] app icon switch to '%s' failed: %s\n",
-                   style.UTF8String,
-                   error.localizedDescription.UTF8String);
-        } else {
-            printf("[SETTINGS] app icon switched to %s\n", style.UTF8String);
-        }
-        dispatch_async(dispatch_get_main_queue(), ^{
-            NSIndexSet *idx = [NSIndexSet indexSetWithIndex:RootSectionAppIcon];
-            [tableView reloadSections:idx withRowAnimation:UITableViewRowAnimationNone];
-        });
-    }];
-}
-
-+ (UIImage *)experimentalDangerChip
-{
-    static UIImage *cached;
-    static dispatch_once_t once;
-    dispatch_once(&once, ^{
-        NSString *text = @"DANGER";
-        UIFont *font = [UIFont systemFontOfSize:10.0 weight:UIFontWeightBold];
-        NSDictionary *attrs = @{
-            NSFontAttributeName: font,
-            NSForegroundColorAttributeName: UIColor.whiteColor,
-            NSKernAttributeName: @(0.4),
-        };
-        CGSize ts = [text sizeWithAttributes:attrs];
-        CGFloat padH = 6.5;
-        CGFloat padV = 2.5;
-        CGSize size = CGSizeMake(ceil(ts.width) + padH * 2.0,
-                                 ceil(ts.height) + padV * 2.0);
-        UIGraphicsImageRenderer *r = [[UIGraphicsImageRenderer alloc] initWithSize:size];
-        cached = [r imageWithActions:^(UIGraphicsImageRendererContext *ctx) {
-            UIBezierPath *p = [UIBezierPath bezierPathWithRoundedRect:CGRectMake(0, 0, size.width, size.height)
-                                                          cornerRadius:size.height / 2.0];
-            [UIColor.systemRedColor setFill];
-            [p fill];
-            [text drawAtPoint:CGPointMake(padH, padV) withAttributes:attrs];
-        }];
-    });
-    return cached;
-}
-
-- (UITableViewCell *)buildExperimentalCellInTableView:(UITableView *)tableView
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"experimental"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"experimental"];
-        cell.detailTextLabel.numberOfLines = 0;
-    }
-    BOOL on = [[NSUserDefaults standardUserDefaults] boolForKey:kSettingsExperimentalTweaksEnabled];
-
-    UIColor *iconColor = on ? UIColor.systemRedColor
-                            : [UIColor.systemRedColor colorWithAlphaComponent:0.55];
-    cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"flask.fill"
-                                                                  color:iconColor
-                                                                   size:29.0];
-
-    NSMutableAttributedString *title = [[NSMutableAttributedString alloc]
-        initWithString:@"Experimental Tweaks  "
-            attributes:@{ NSFontAttributeName: [UIFont systemFontOfSize:17.0],
-                          NSForegroundColorAttributeName: UIColor.labelColor }];
-    NSTextAttachment *att = [[NSTextAttachment alloc] init];
-    UIImage *chip = [SettingsViewController experimentalDangerChip];
-    att.image = chip;
-    att.bounds = CGRectMake(0, -2.0, chip.size.width, chip.size.height);
-    [title appendAttributedString:[NSAttributedString attributedStringWithAttachment:att]];
-    cell.textLabel.attributedText = title;
-
-    cell.detailTextLabel.text = on
-        ? @"Active — in-development tweaks unlocked. These probably don't "
-          @"work yet; installing only adds risk, no benefit. Currently "
-          @"gates: Signal Readouts, TypeBanner."
-        : @"In-development only. These tweaks likely don't work yet and "
-          @"may never ship — turning this on only adds risk with no real "
-          @"benefit. Currently gates: Signal Readouts, TypeBanner.";
-    cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-    cell.detailTextLabel.textColor = on
-        ? [UIColor.systemRedColor colorWithAlphaComponent:0.9]
-        : UIColor.secondaryLabelColor;
-
-    cell.backgroundColor = on
-        ? [UIColor.systemRedColor colorWithAlphaComponent:0.10]
-        : nil;
-
-    cell.accessoryType = UITableViewCellAccessoryNone;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-
-    UISwitch *sw = [[UISwitch alloc] init];
-    sw.onTintColor = UIColor.systemRedColor;
-    sw.on = on;
-    [sw addTarget:self action:@selector(experimentalSwitchChanged:) forControlEvents:UIControlEventValueChanged];
-    cell.accessoryView = sw;
-    return cell;
-}
-
-- (void)experimentalSwitchChanged:(UISwitch *)sw
-{
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    BOOL enabling = sw.isOn;
-
-    if (enabling) {
-        // Hard confirm before flipping master on. If the user cancels, revert
-        // the switch and stop here.
-        sw.on = NO;
-        UIAlertController *ac = [UIAlertController
-            alertControllerWithTitle:@"Enable Experimental Tweaks?"
-                             message:@"These tweaks are in development and most likely don't work yet. Installing them adds risk — SpringBoard crashes, dropped events, layout glitches, heavy battery drain — with no guaranteed benefit in return. Only turn this on if you're a developer actively testing."
-                      preferredStyle:UIAlertControllerStyleAlert];
-        [ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-        [ac addAction:[UIAlertAction actionWithTitle:@"Enable Anyway"
-                                               style:UIAlertActionStyleDestructive
-                                             handler:^(UIAlertAction *_) {
-            [d setBool:YES forKey:kSettingsExperimentalTweaksEnabled];
-            sw.on = YES;
-            printf("[SETTINGS] experimental tweaks enabled\n");
-            [self reloadAfterExperimentalChange];
-        }]];
-        [self presentViewController:ac animated:YES completion:nil];
-        return;
-    }
-
-    [d setBool:NO forKey:kSettingsExperimentalTweaksEnabled];
-    printf("[SETTINGS] experimental tweaks disabled; tearing down gated tweaks\n");
-
-    // Force-disable every experimental-gated tweak so the user's setup doesn't
-    // silently keep running with the master switch off. Add new gated tweaks
-    // here as they're introduced.
-    if ([d boolForKey:kSettingsTypeBannerEnabled]) {
-        [d setBool:NO forKey:kSettingsTypeBannerEnabled];
-        settings_mark_tweak_applied(kSettingsTypeBannerEnabled, NO);
-        settings_notify_package_queue_changed_async();
-        settings_schedule_live_apply_for_key(kSettingsTypeBannerEnabled);
-    }
-    if ([d boolForKey:kSettingsRSSIDisplayEnabled]) {
-        [d setBool:NO forKey:kSettingsRSSIDisplayEnabled];
-        settings_mark_tweak_applied(kSettingsRSSIDisplayEnabled, NO);
-        settings_notify_package_queue_changed_async();
-        settings_schedule_live_apply_for_key(kSettingsRSSIDisplayEnabled);
-    }
-    [self reloadAfterExperimentalChange];
-}
-
-- (void)reloadAfterExperimentalChange
-{
-    // Tweak bundle list visibility depends on the experimental flag, and the
-    // installer's package list is filtered by it too — refresh both.
-    [self.tableView reloadData];
-    [[NSNotificationCenter defaultCenter] postNotificationName:PackageQueueDidChangeNotification
-                                                        object:[PackageQueue sharedQueue]];
-}
-
-#pragma mark - Patreon
-
-// Drops any experimental-gated state if the user is no longer a patron, so
-// turning Experimental off via revoked pledge mirrors the manual switch-off
-// teardown (TypeBanner / RSSIDisplay disabled + live tear-down scheduled).
-- (void)teardownExperimentalIfNoLongerPatron
-{
-    if (cyanide_is_patron()) return;
-    NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-    if (![d boolForKey:kSettingsExperimentalTweaksEnabled]) return;
-
-    printf("[PATREON] patron status lost; force-disabling experimental tweaks\n");
-    [d setBool:NO forKey:kSettingsExperimentalTweaksEnabled];
-    if ([d boolForKey:kSettingsTypeBannerEnabled]) {
-        [d setBool:NO forKey:kSettingsTypeBannerEnabled];
-        settings_mark_tweak_applied(kSettingsTypeBannerEnabled, NO);
-        settings_notify_package_queue_changed_async();
-        settings_schedule_live_apply_for_key(kSettingsTypeBannerEnabled);
-    }
-    if ([d boolForKey:kSettingsRSSIDisplayEnabled]) {
-        [d setBool:NO forKey:kSettingsRSSIDisplayEnabled];
-        settings_mark_tweak_applied(kSettingsRSSIDisplayEnabled, NO);
-        settings_notify_package_queue_changed_async();
-        settings_schedule_live_apply_for_key(kSettingsRSSIDisplayEnabled);
-    }
-}
-
-- (void)patreonStatusDidChange:(NSNotification *)note
-{
-    (void)note;
-    dispatch_async(dispatch_get_main_queue(), ^{
-        NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
-        BOOL nowPatron = cyanide_is_patron();
-        BOOL wasPatron = [d boolForKey:kCyanideLastKnownIsPatron];
-        BOOL haveLastKnown = ([d objectForKey:kCyanideLastKnownIsPatron] != nil);
-        if (nowPatron && (!wasPatron || !haveLastKnown)) {
-            if (![d boolForKey:kSettingsExperimentalTweaksEnabled]) {
-                [d setBool:YES forKey:kSettingsExperimentalTweaksEnabled];
-            }
-        }
-        [d setBool:nowPatron forKey:kCyanideLastKnownIsPatron];
-
-        [self teardownExperimentalIfNoLongerPatron];
-        if (!self.isViewLoaded || self.detailMode) return;
-        // Row count for Patreon changes between 1 and 3, so a full reloadData
-        // is simpler than animating diffs.
-        [self.tableView reloadData];
-    });
-}
-
-- (UITableViewCell *)buildPatreonCellAtRow:(NSInteger)row tableView:(UITableView *)tableView
-{
-    BOOL linked = cyanide_patreon_is_linked();
-    UIColor *patreonOrange = [UIColor colorWithRed:0.94 green:0.31 blue:0.20 alpha:1.0];
-
-    if (!linked) {
-        // Row 0: link an existing Patreon account (OAuth flow in-app).
-        // Row 1: new-to-Patreon sign-up affordance (opens patreon.com/zeroxjf).
-        if (row == 0) {
-            UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"patreon-link"];
-            if (!cell) {
-                cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"patreon-link"];
-                cell.detailTextLabel.numberOfLines = 0;
-            }
-            cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"heart.fill"
-                                                                          color:patreonOrange
-                                                                           size:29.0];
-            cell.textLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
-            cell.textLabel.textColor = patreonOrange;
-            cell.textLabel.text = @"Link Patreon Account";
-            cell.textLabel.textAlignment = NSTextAlignmentLeft;
-            cell.detailTextLabel.text = @"Sign in with your existing Patreon account.";
-            cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-            cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-            cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-            cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-            return cell;
-        }
-        // row == 1: explicit "don't have one yet?" entry point.
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"patreon-signup"];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"patreon-signup"];
-            cell.detailTextLabel.numberOfLines = 0;
-        }
-        cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"person.crop.circle.badge.plus"
-                                                                      color:patreonOrange
-                                                                       size:29.0];
-        cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-        cell.textLabel.textColor = patreonOrange;
-        cell.textLabel.text = @"New to Patreon? Sign Up";
-        cell.textLabel.textAlignment = NSTextAlignmentLeft;
-        cell.detailTextLabel.text = @"Opens patreon.com/zeroxjf so you can create an account and join the Member tier. After signing up, come back here and tap Link.";
-        cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-        cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-        cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-        cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-        return cell;
-    }
-
-    BOOL isPatron = cyanide_is_patron();
-
-    if (row == 0) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"patreon-status"];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"patreon-status"];
-            cell.detailTextLabel.numberOfLines = 0;
-        }
-        UIColor *iconColor = isPatron ? patreonOrange : [patreonOrange colorWithAlphaComponent:0.45];
-        cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"heart.fill"
-                                                                      color:iconColor
-                                                                       size:29.0];
-        cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-        cell.textLabel.textColor = UIColor.labelColor;
-        cell.textLabel.text = cyanide_patreon_display_name() ?: @"Linked";
-
-        NSString *tier = cyanide_patreon_tier_title();
-        NSInteger cents = cyanide_patreon_pledge_cents();
-        NSString *detail;
-        if (isPatron) {
-            if (cents <= 0) {
-                // Synthetic tiers like "Creator" carry no dollar amount —
-                // showing "$0/month" beside them reads as a bug.
-                detail = tier.length > 0 ? tier : @"Active supporter";
-            } else {
-                NSString *amount = (cents % 100 == 0)
-                    ? [NSString stringWithFormat:@"$%ld/month", (long)(cents / 100)]
-                    : [NSString stringWithFormat:@"$%.2f/month", cents / 100.0];
-                detail = tier.length > 0
-                    ? [NSString stringWithFormat:@"%@ • %@", tier, amount]
-                    : amount;
-            }
-        } else {
-            detail = @"Free Patreon user — supporter features stay locked until you join the Member tier or above.";
-        }
-        cell.detailTextLabel.text = detail;
-        cell.detailTextLabel.textColor = isPatron ? patreonOrange : UIColor.secondaryLabelColor;
-        cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-        cell.accessoryType = UITableViewCellAccessoryNone;
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        return cell;
-    }
-
-    // Action rows. Free-supporter layout inserts a "Join Member Tier" row
-    // between the identity row and Refresh/Sign Out, so the indices shift.
-    NSInteger joinRow    = isPatron ? -1 : 1;
-    NSInteger refreshRow = isPatron ?  1 : 2;
-    NSInteger signoutRow = isPatron ?  2 : 3;
-
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"patreon-action"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleDefault reuseIdentifier:@"patreon-action"];
-    }
-    cell.imageView.image = nil;
-    cell.accessoryView = nil;
-    cell.accessoryType = UITableViewCellAccessoryNone;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-    cell.textLabel.textAlignment = NSTextAlignmentCenter;
-    cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-    if (row == joinRow) {
-        cell.textLabel.text = @"Join Member Tier on Patreon";
-        cell.textLabel.textColor = patreonOrange;
-        cell.textLabel.font = [UIFont systemFontOfSize:17.0 weight:UIFontWeightSemibold];
-    } else if (row == refreshRow) {
-        cell.textLabel.text = @"Refresh Patron Status";
-        cell.textLabel.textColor = self.view.tintColor;
-    } else if (row == signoutRow) {
-        cell.textLabel.text = @"Sign Out of Patreon";
-        cell.textLabel.textColor = UIColor.systemRedColor;
-    }
-    return cell;
-}
-
-- (UITableViewCell *)buildExperimentalLockedCellInTableView:(UITableView *)tableView
-{
-    UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"experimental-locked"];
-    if (!cell) {
-        cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"experimental-locked"];
-        cell.detailTextLabel.numberOfLines = 0;
-    }
-    cell.imageView.image = [SettingsViewController iconBadgeWithSymbol:@"lock.fill"
-                                                                  color:UIColor.systemGrayColor
-                                                                   size:29.0];
-    cell.textLabel.font = [UIFont systemFontOfSize:17.0];
-    cell.textLabel.textColor = UIColor.labelColor;
-    cell.textLabel.text = @"Experimental Tweaks";
-    if (cyanide_patreon_is_linked()) {
-        cell.detailTextLabel.text = @"Early access for Member tier supporters on Patreon. You're linked as a free user — tap to upgrade to the Member tier. (These features eventually ship in the public release.)";
-    } else {
-        cell.detailTextLabel.text = @"Early access for Member tier supporters on Patreon. Tap to link an existing Patreon account, or use Sign Up in the Patreon section above if you don't have one yet. (These features eventually ship in the public release.)";
-    }
-    cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-    cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-    cell.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    cell.selectionStyle = UITableViewCellSelectionStyleDefault;
-    cell.backgroundColor = nil;
-    return cell;
-}
-
-- (void)handlePatreonTapAtRow:(NSInteger)row
-{
-    BOOL linked = cyanide_patreon_is_linked();
-
-    if (!linked) {
-        // Row 0 = "Link Patreon Account" → in-app OAuth.
-        // Row 1 = "New to Patreon? Sign Up" → opens patreon.com/zeroxjf in Safari.
-        if (row == 1) {
-            [[UIApplication sharedApplication] openURL:cyanide_patreon_join_url()
-                                               options:@{}
-                                     completionHandler:nil];
-            return;
-        }
-        cyanide_patreon_authenticate(self, ^(BOOL ok, NSError *err) {
-            if (ok) {
-                printf("[PATREON] linked successfully\n");
-                return;
-            }
-            if ([err.domain isEqualToString:@"CyanidePatreon"] && err.code == NSUserCancelledError) return;
-            UIAlertController *ac = [UIAlertController
-                alertControllerWithTitle:@"Couldn't Link Patreon"
-                                 message:err.localizedDescription ?: @"Unknown error."
-                          preferredStyle:UIAlertControllerStyleAlert];
-            [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [self presentViewController:ac animated:YES completion:nil];
-        });
-        return;
-    }
-
-    if (row == 0) return;  // identity row, non-interactive
-
-    BOOL isPatron = cyanide_is_patron();
-    NSInteger joinRow    = isPatron ? -1 : 1;
-    NSInteger refreshRow = isPatron ?  1 : 2;
-    NSInteger signoutRow = isPatron ?  2 : 3;
-
-    if (row == joinRow) {
-        [[UIApplication sharedApplication] openURL:cyanide_patreon_join_url() options:@{} completionHandler:nil];
-        return;
-    }
-
-    if (row == refreshRow) {
-        cyanide_patreon_refresh(^(BOOL ok, NSError *err) {
-            if (ok) return;
-            printf("[PATREON] refresh failed: %s\n", err.localizedDescription.UTF8String ?: "unknown");
-            UIAlertController *ac = [UIAlertController
-                alertControllerWithTitle:@"Couldn't Refresh"
-                                 message:err.localizedDescription ?: @"Unknown error."
-                          preferredStyle:UIAlertControllerStyleAlert];
-            [ac addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
-            [self presentViewController:ac animated:YES completion:nil];
-        });
-        return;
-    }
-
-    if (row == signoutRow) {
-        UIAlertController *ac = [UIAlertController
-            alertControllerWithTitle:@"Sign Out of Patreon?"
-                             message:@"Removes the linked account from this device. Supporter-only features will lock until you link again."
-                      preferredStyle:UIAlertControllerStyleAlert];
-        [ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
-        [ac addAction:[UIAlertAction actionWithTitle:@"Sign Out"
-                                               style:UIAlertActionStyleDestructive
-                                             handler:^(UIAlertAction *_) {
-            cyanide_patreon_sign_out();
-        }]];
-        [self presentViewController:ac animated:YES completion:nil];
-    }
 }
 
 - (void)openTwitter
@@ -5831,19 +4227,8 @@ void cyanide_present_contact(UIViewController *host)
                 return [self buildBundleCellWithRow:self.tweakBundleRows[indexPath.row] tableView:tableView];
             case RootSectionSystemBundles:
                 return [self buildBundleCellWithRow:self.systemBundleRows[indexPath.row] tableView:tableView];
-            case RootSectionAppIcon:
-                return [self buildAppIconCellAtRow:indexPath.row tableView:tableView];
-            case RootSectionDocs:
-                return [self buildDocsCellInTableView:tableView];
-            case RootSectionPatreon:
-                return [self buildPatreonCellAtRow:indexPath.row tableView:tableView];
             case RootSectionAbout:
                 return [self buildAboutCellAtRow:indexPath.row tableView:tableView];
-            case RootSectionExperimental:
-                if (!cyanide_is_patron()) {
-                    return [self buildExperimentalLockedCellInTableView:tableView];
-                }
-                return [self buildExperimentalCellInTableView:tableView];
             case RootSectionCount:
                 return [[UITableViewCell alloc] init];
         }
@@ -5874,8 +4259,6 @@ void cyanide_present_contact(UIViewController *host)
         BOOL rowEnabled = supported;
         if (indexPath.row == 0) rowEnabled = cleanupEnabled;
         if (indexPath.row == 2) rowEnabled = anyInstalledOrQueued;
-        if (indexPath.row == 3) rowEnabled = YES;     // network check is always allowed
-        if (indexPath.row == 4) rowEnabled = NO;       // disabled while in development
 
         UILabel *primary = [[UILabel alloc] init];
         primary.translatesAutoresizingMaskIntoConstraints = NO;
@@ -5887,15 +4270,9 @@ void cyanide_present_contact(UIViewController *host)
         } else if (indexPath.row == 1) {
             primary.text = g_settings_respring_cleanup_running ? @" " : @"Respring";
             primary.textColor = supported ? UIColor.systemOrangeColor : UIColor.tertiaryLabelColor;
-        } else if (indexPath.row == 2) {
+        } else {
             primary.text = @"Reset All Packages";
             primary.textColor = anyInstalledOrQueued ? UIColor.systemRedColor : UIColor.tertiaryLabelColor;
-        } else if (indexPath.row == 3) {
-            primary.text = @"Check for Updates";
-            primary.textColor = self.view.tintColor;
-        } else {
-            primary.text = @"Kill Background Apps (in development)";
-            primary.textColor = UIColor.tertiaryLabelColor;
         }
         [cell.contentView addSubview:primary];
 
@@ -5950,12 +4327,6 @@ void cyanide_present_contact(UIViewController *host)
                 ? @"Uninstall every package and clear the pending queue. SpringBoard patches already applied this session stay until respring/reboot."
                 : @"Nothing installed or queued.";
             detailColor = anyInstalledOrQueued ? UIColor.secondaryLabelColor : UIColor.tertiaryLabelColor;
-        } else if (indexPath.row == 3) {
-            detailText  = @"Pings GitHub for the latest release. Run this if the launch prompt didn't appear.";
-            detailColor = UIColor.secondaryLabelColor;
-        } else if (indexPath.row == 4) {
-            detailText  = @"In development — still over-kills background services. Disabled until the filter is right.";
-            detailColor = UIColor.tertiaryLabelColor;
         }
         if (detailText) {
             UILabel *detail = [[UILabel alloc] init];
@@ -5991,29 +4362,8 @@ void cyanide_present_contact(UIViewController *host)
     NSUserDefaults *d = [NSUserDefaults standardUserDefaults];
     BOOL supported = settings_device_supported();
 
-    if ([kind isEqualToString:@"info"]) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"info"];
-        if (!cell) {
-            cell = [[UITableViewCell alloc] initWithStyle:UITableViewCellStyleSubtitle reuseIdentifier:@"info"];
-            cell.detailTextLabel.numberOfLines = 0;
-        }
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.userInteractionEnabled = NO;
-        cell.accessoryView = nil;
-        cell.accessoryType = UITableViewCellAccessoryNone;
-        cell.textLabel.text = row[@"title"];
-        cell.textLabel.textColor = UIColor.labelColor;
-        cell.textLabel.font = [UIFont systemFontOfSize:16.0 weight:UIFontWeightSemibold];
-        cell.detailTextLabel.text = row[@"subtitle"];
-        cell.detailTextLabel.textColor = UIColor.secondaryLabelColor;
-        cell.detailTextLabel.font = [UIFont systemFontOfSize:13.0];
-        return cell;
-    }
-
     if ([kind isEqualToString:@"button"]) {
-        BOOL rowSupported = supported ||
-                            indexPath.section == SectionOTA ||
-                            indexPath.section == SectionThemer;
+        BOOL rowSupported = supported || indexPath.section == SectionOTA;
         NSString *action = row[@"action"];
         if (indexPath.section == SectionNanoRegistry &&
             [action isEqualToString:@"nano-load"]) {
@@ -6065,69 +4415,6 @@ void cyanide_present_contact(UIViewController *host)
         return cell;
     }
 
-    if ([kind isEqualToString:@"slider"]) {
-        UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"slider" forIndexPath:dequeuePath];
-        cell.selectionStyle = UITableViewCellSelectionStyleNone;
-        cell.textLabel.text = nil;
-        cell.detailTextLabel.text = nil;
-        cell.accessoryView = nil;
-        for (UIView *v in [cell.contentView.subviews copy]) [v removeFromSuperview];
-
-        NSInteger minV = [row[@"min"] integerValue];
-        NSInteger maxV = [row[@"max"] integerValue];
-        NSInteger step = [row[@"step"] integerValue]; if (step <= 0) step = 1;
-        NSInteger value = [d integerForKey:row[@"key"]];
-        if (value < minV) value = minV;
-        if (value > maxV) value = maxV;
-        NSString *unit = row[@"unit"] ?: @"";
-
-        UILabel *title = [[UILabel alloc] init];
-        title.translatesAutoresizingMaskIntoConstraints = NO;
-        title.text = row[@"title"];
-        title.font = [UIFont systemFontOfSize:15 weight:UIFontWeightSemibold];
-        title.textColor = supported ? UIColor.labelColor : UIColor.tertiaryLabelColor;
-
-        UILabel *valueLabel = [[UILabel alloc] init];
-        valueLabel.translatesAutoresizingMaskIntoConstraints = NO;
-        valueLabel.text = [NSString stringWithFormat:@"%ld%@", (long)value, unit];
-        valueLabel.font = [UIFont monospacedDigitSystemFontOfSize:15 weight:UIFontWeightRegular];
-        valueLabel.textColor = supported ? UIColor.secondaryLabelColor : UIColor.tertiaryLabelColor;
-        valueLabel.textAlignment = NSTextAlignmentRight;
-
-        UISlider *slider = [[UISlider alloc] init];
-        slider.translatesAutoresizingMaskIntoConstraints = NO;
-        slider.minimumValue = (float)minV;
-        slider.maximumValue = (float)maxV;
-        slider.value = (float)value;
-        slider.continuous = YES;
-        slider.enabled = supported;
-        slider.tag = (indexPath.section << 16) | indexPath.row;
-        [slider addTarget:self action:@selector(sliderChanged:) forControlEvents:UIControlEventValueChanged];
-        [slider addTarget:self action:@selector(sliderEnded:) forControlEvents:UIControlEventTouchUpInside | UIControlEventTouchUpOutside | UIControlEventTouchCancel];
-        // Stash the value label so sliderChanged: can update it without a full reload.
-        objc_setAssociatedObject(slider, "cyanideValueLabel", valueLabel, OBJC_ASSOCIATION_ASSIGN);
-        objc_setAssociatedObject(slider, "cyanideUnit", unit, OBJC_ASSOCIATION_RETAIN);
-        objc_setAssociatedObject(slider, "cyanideStep", @(step), OBJC_ASSOCIATION_RETAIN);
-
-        [cell.contentView addSubview:title];
-        [cell.contentView addSubview:valueLabel];
-        [cell.contentView addSubview:slider];
-
-        UILayoutGuide *m = cell.contentView.layoutMarginsGuide;
-        [NSLayoutConstraint activateConstraints:@[
-            [title.leadingAnchor      constraintEqualToAnchor:m.leadingAnchor],
-            [title.topAnchor          constraintEqualToAnchor:m.topAnchor],
-            [valueLabel.trailingAnchor constraintEqualToAnchor:m.trailingAnchor],
-            [valueLabel.centerYAnchor  constraintEqualToAnchor:title.centerYAnchor],
-            [valueLabel.leadingAnchor  constraintGreaterThanOrEqualToAnchor:title.trailingAnchor constant:8],
-            [slider.leadingAnchor   constraintEqualToAnchor:m.leadingAnchor],
-            [slider.trailingAnchor  constraintEqualToAnchor:m.trailingAnchor],
-            [slider.topAnchor       constraintEqualToAnchor:title.bottomAnchor constant:4],
-            [slider.bottomAnchor    constraintEqualToAnchor:m.bottomAnchor],
-        ]];
-        return cell;
-    }
-
     if ([kind isEqualToString:@"segmented"]) {
         UITableViewCell *cell = [tableView dequeueReusableCellWithIdentifier:@"segmented" forIndexPath:dequeuePath];
         cell.selectionStyle = UITableViewCellSelectionStyleNone;
@@ -6135,9 +4422,9 @@ void cyanide_present_contact(UIViewController *host)
         for (UIView *v in [cell.contentView.subviews copy]) [v removeFromSuperview];
         UISegmentedControl *seg = [[UISegmentedControl alloc] initWithItems:powercuff_levels()];
         seg.translatesAutoresizingMaskIntoConstraints = NO;
-        NSString *cur = [d stringForKey:row[@"key"]] ?: @"nominal";
+        NSString *cur = [d stringForKey:row[@"key"]] ?: @"heavy";
         NSUInteger idx = [powercuff_levels() indexOfObject:cur];
-        if (idx == NSNotFound) idx = [powercuff_levels() indexOfObject:@"nominal"];
+        if (idx == NSNotFound) idx = 4;
         seg.selectedSegmentIndex = (NSInteger)idx;
         seg.enabled = supported;
         [seg addTarget:self action:@selector(powercuffSegChanged:) forControlEvents:UIControlEventValueChanged];
@@ -6227,35 +4514,6 @@ void cyanide_present_contact(UIViewController *host)
     [self presentApplyLogIfRunning];
 }
 
-- (void)sliderChanged:(UISlider *)sender
-{
-    if (!settings_device_supported()) return;
-    NSNumber *stepNum = objc_getAssociatedObject(sender, "cyanideStep");
-    NSInteger step = stepNum ? [stepNum integerValue] : 1;
-    if (step <= 0) step = 1;
-    NSInteger value = (NSInteger)llround((double)sender.value / (double)step) * step;
-    UILabel *valueLabel = objc_getAssociatedObject(sender, "cyanideValueLabel");
-    NSString *unit = objc_getAssociatedObject(sender, "cyanideUnit") ?: @"";
-    if (valueLabel) {
-        valueLabel.text = [NSString stringWithFormat:@"%ld%@", (long)value, unit];
-    }
-}
-
-- (void)sliderEnded:(UISlider *)sender
-{
-    if (!settings_device_supported()) return;
-    NSDictionary *row = [self rowForTag:sender.tag];
-    if (!row) return;
-    NSString *key = row[@"key"];
-    NSInteger step = [row[@"step"] integerValue]; if (step <= 0) step = 1;
-    NSInteger value = (NSInteger)llround((double)sender.value / (double)step) * step;
-    sender.value = (float)value;  // snap thumb to the step grid
-    [[NSUserDefaults standardUserDefaults] setInteger:value forKey:key];
-    printf("[SETTINGS] slider %s=%ld\n", key.UTF8String, (long)value);
-    settings_schedule_live_apply_for_key(key);
-    [self presentApplyLogIfRunning];
-}
-
 - (void)stepperChanged:(UIStepper *)sender
 {
     if (!settings_device_supported()) {
@@ -6338,71 +4596,12 @@ void cyanide_present_contact(UIViewController *host)
                 [self.navigationController pushViewController:detail animated:YES];
                 return;
             }
-            case RootSectionAppIcon:
-                [self selectAppIconAtRow:indexPath.row inTableView:tableView];
-                return;
-            case RootSectionDocs: {
-                [tableView deselectRowAtIndexPath:indexPath animated:YES];
-                DocsViewController *docs = [[DocsViewController alloc] initWithStyle:UITableViewStyleInsetGrouped];
-                [self.navigationController pushViewController:docs animated:YES];
-                return;
-            }
             case RootSectionAbout:
                 if (indexPath.row == 0)      [self openTwitter];
                 else if (indexPath.row == 1) [self openViewLog];
                 else if (indexPath.row == 2) [self openShareLog];
                 // row 3: toggle — handled by UISwitch target, no action here
                 return;
-            case RootSectionPatreon:
-                [self handlePatreonTapAtRow:indexPath.row];
-                return;
-            case RootSectionExperimental: {
-                [tableView deselectRowAtIndexPath:indexPath animated:YES];
-                if (!cyanide_is_patron()) {
-                    if (cyanide_patreon_is_linked()) {
-                        // Already linked but not pledging — send them to
-                        // Patreon to actually join the Member tier.
-                        [[UIApplication sharedApplication] openURL:cyanide_patreon_join_url()
-                                                            options:@{}
-                                                  completionHandler:nil];
-                    } else {
-                        // Not linked yet — present a two-choice sheet so the
-                        // user can either link an existing account or jump to
-                        // Patreon to sign up first. Avoids dumping someone
-                        // without a Patreon account straight into the OAuth
-                        // sign-in screen with no escape hatch.
-                        UIAlertController *ac = [UIAlertController
-                            alertControllerWithTitle:@"Member Tier Required"
-                                             message:@"Experimental tweaks are early-access perks for Member tier supporters on patreon.com/zeroxjf.\n\nDo you already have a Patreon account?"
-                                      preferredStyle:UIAlertControllerStyleAlert];
-                        __weak typeof(self) weakSelf = self;
-                        [ac addAction:[UIAlertAction actionWithTitle:@"Yes — Link Account"
-                                                               style:UIAlertActionStyleDefault
-                                                             handler:^(UIAlertAction *a) {
-                            [weakSelf handlePatreonTapAtRow:0];
-                        }]];
-                        [ac addAction:[UIAlertAction actionWithTitle:@"No — Sign Up on Patreon"
-                                                               style:UIAlertActionStyleDefault
-                                                             handler:^(UIAlertAction *a) {
-                            [[UIApplication sharedApplication] openURL:cyanide_patreon_join_url()
-                                                               options:@{}
-                                                     completionHandler:nil];
-                        }]];
-                        [ac addAction:[UIAlertAction actionWithTitle:@"Cancel"
-                                                               style:UIAlertActionStyleCancel
-                                                             handler:nil]];
-                        [self presentViewController:ac animated:YES completion:nil];
-                    }
-                    return;
-                }
-                UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
-                if ([cell.accessoryView isKindOfClass:[UISwitch class]]) {
-                    UISwitch *sw = (UISwitch *)cell.accessoryView;
-                    [sw setOn:!sw.isOn animated:YES];
-                    [self experimentalSwitchChanged:sw];
-                }
-                return;
-            }
             case RootSectionCount:
                 return;
         }
@@ -6412,8 +4611,7 @@ void cyanide_present_contact(UIViewController *host)
 
     if (!settings_device_supported() &&
         indexPath.section != SectionWarning &&
-        indexPath.section != SectionOTA &&
-        indexPath.section != SectionThemer) {
+        indexPath.section != SectionOTA) {
         printf("[SETTINGS] tap blocked: %s\n", settings_unsupported_message().UTF8String);
         return;
     }
@@ -6464,7 +4662,10 @@ void cyanide_present_contact(UIViewController *host)
                     dispatch_async(dispatch_get_main_queue(), ^{
                         __strong typeof(weakSelf) strongSelf = weakSelf;
                         if (!strongSelf) return;
-                        settings_show_respring_overlay(strongSelf);
+                        DSRespringViewController *vc = [[DSRespringViewController alloc] init];
+                        UINavigationController *nav = [[UINavigationController alloc] initWithRootViewController:vc];
+                        nav.modalPresentationStyle = UIModalPresentationFullScreen;
+                        settings_present_controller(nav, strongSelf);
                     });
                 });
             }]];
@@ -6492,40 +4693,6 @@ void cyanide_present_contact(UIViewController *host)
                 log_user("[INSTALLER] Reset: uninstalled %lu package(s), cleared %ld queued change(s).\n",
                          (unsigned long)uninstalled, (long)cleared);
                 [self.tableView reloadData];
-            }]];
-            settings_present_controller(ac, self);
-        } else if (indexPath.row == 3) {
-            [[UpdateChecker shared] checkForUpdatesManuallyFrom:self];
-        } else if (indexPath.row == 4) {
-            if (!g_springboard_rc_ready) {
-                log_user("[KILLALL] Needs an active SpringBoard session. Hit Run first.\n");
-                return;
-            }
-            UIAlertController *ac = [UIAlertController
-                alertControllerWithTitle:@"Kill Background Apps?"
-                                 message:@"This asks SpringBoard to terminate every running app except Cyanide, like swiping them all out of the App Switcher.\n\nApps with unsaved work may lose it. SpringBoard and the lock-screen process are skipped."
-                          preferredStyle:UIAlertControllerStyleAlert];
-            [ac addAction:[UIAlertAction actionWithTitle:@"Cancel"
-                                                   style:UIAlertActionStyleCancel
-                                                 handler:nil]];
-            [ac addAction:[UIAlertAction actionWithTitle:@"Kill Apps"
-                                                   style:UIAlertActionStyleDestructive
-                                                 handler:^(UIAlertAction *_) {
-                dispatch_async(dispatch_get_global_queue(0, 0), ^{
-                    @synchronized (settings_rc_lock()) {
-                        if (settings_cleanup_in_progress() || !g_springboard_rc_ready) {
-                            log_user("[KILLALL] Aborted: session not ready.\n");
-                            return;
-                        }
-                        int killed = 0;
-                        bool ok = killallapps_apply_in_session(&killed);
-                        if (ok) {
-                            log_user("[KILLALL] Killed %d background app(s).\n", killed);
-                        } else {
-                            log_user("[KILLALL] Failed: SpringBoard enumeration error (see log).\n");
-                        }
-                    }
-                });
             }]];
             settings_present_controller(ac, self);
         }
@@ -6565,7 +4732,7 @@ void cyanide_present_contact(UIViewController *host)
                                               kNanoPresetNewerMinPairing,
                                               kNanoPresetNewerMinPairingChipID,
                                               kNanoPresetNewerMinQuickSwitch);
-            log_user("[NANO] Loaded pairing range 99/23/10/6: max=%ld min=%ld minChip=%ld minQuick=%ld. Hit Apply to write.\n",
+            log_user("[NANO] Loaded preset for newer watchOS: max=%ld min=%ld minChip=%ld minQuick=%ld. Hit Apply to write.\n",
                      (long)kNanoPresetNewerMaxPairing,
                      (long)kNanoPresetNewerMinPairing,
                      (long)kNanoPresetNewerMinPairingChipID,
@@ -6575,7 +4742,7 @@ void cyanide_present_contact(UIViewController *host)
         } else if ([action isEqualToString:@"nano-apply"]) {
             UIAlertController *ac = [UIAlertController
                 alertControllerWithTitle:@"Apply Pairing Override?"
-                                 message:@"Saves these watchOS pairing settings on this iPhone. Respring or reboot afterwards before trying to pair."
+                                 message:@"This writes com.apple.NanoRegistry.plist with the four numbers above. Respring or reboot afterwards for cfprefsd to drop its cache."
                           preferredStyle:UIAlertControllerStyleAlert];
             [ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
             [ac addAction:[UIAlertAction actionWithTitle:@"Apply" style:UIAlertActionStyleDefault handler:^(UIAlertAction *_) {
@@ -6599,7 +4766,7 @@ void cyanide_present_contact(UIViewController *host)
         } else if ([action isEqualToString:@"nano-clear"]) {
             UIAlertController *ac = [UIAlertController
                 alertControllerWithTitle:@"Remove Pairing Override?"
-                                 message:@"Removes the saved Watch Pairing Override without touching the rest of your watch data. Respring or reboot afterwards."
+                                 message:@"Removes only the four override keys; other NanoRegistry state is preserved. Respring or reboot afterwards."
                           preferredStyle:UIAlertControllerStyleAlert];
             [ac addAction:[UIAlertAction actionWithTitle:@"Cancel" style:UIAlertActionStyleCancel handler:nil]];
             [ac addAction:[UIAlertAction actionWithTitle:@"Remove" style:UIAlertActionStyleDestructive handler:^(UIAlertAction *_) {
@@ -6623,10 +4790,6 @@ void cyanide_present_contact(UIViewController *host)
             __weak typeof(self) weakSelf = self;
             dispatch_async(dispatch_get_global_queue(0, 0), ^{
                 @try {
-                    if (g_settings_actions_running) {
-                        log_user("[TYPEBANNER] Test aborted: Apply Tweaks is still running.\n");
-                        return;
-                    }
                     if (!settings_ensure_kexploit()) {
                         log_user("[TYPEBANNER] Test failed: kernel primitives not acquired. Run kexploit (Apply Tweaks) first.\n");
                         return;
@@ -6638,49 +4801,41 @@ void cyanide_present_contact(UIViewController *host)
                     if (liveLoopWasRunning) {
                         g_typebanner_live_stop_requested = 1;
                         int waitMs = 0;
-                        while (g_typebanner_live_running && waitMs < 30000) {
+                        while (g_typebanner_live_running && waitMs < 5000) {
                             usleep(100000);
                             waitMs += 100;
                         }
                         if (g_typebanner_live_running) {
-                            log_user("[TYPEBANNER] Test aborted: live loop did not yield in 30s.\n");
+                            log_user("[TYPEBANNER] Test aborted: live loop did not yield in 5s.\n");
                             return;
                         }
                     }
 
-                    log_user("[TYPEBANNER] Test: polling imagent for typing indicators…\n");
+                    log_user("[TYPEBANNER] Test: polling MobileSMS for typing indicators…\n");
                     NSString *detected = nil;
-                    @synchronized (settings_rc_lock()) {
-                        RemoteCallSession *daemonSession = [[RemoteCallSession alloc] initWithProcess:@"imagent"
-                                                                                   useMigFilterBypass:NO
-                                                                              firstExceptionTimeoutMS:TYPEBANNER_RC_MOBILESMS_FIRST_EXCEPTION_TIMEOUT_MS
-                                                                                    originalThreadOnly:YES];
-                        if (!daemonSession) {
-                            RemoteCallInitFailure failure = remote_call_last_init_failure();
-                            uint32_t pid = remote_call_last_init_failure_pid();
-                            if (failure == RemoteCallInitFailureProcessMissing) {
-                                log_user("[TYPEBANNER] imagent is not running.\n");
-                            } else if (failure == RemoteCallInitFailureFirstExceptionTimeout && pid != 0) {
-                                log_user("[TYPEBANNER] imagent pid=%u did not answer the original-thread bootstrap this tick.\n",
-                                         pid);
-                            } else if (pid != 0) {
-                                log_user("[TYPEBANNER] imagent RemoteCall init failed: %s (pid=%u)\n",
-                                         remote_call_init_failure_description(failure), pid);
-                            } else {
-                                log_user("[TYPEBANNER] imagent RemoteCall init failed: %s\n",
-                                         remote_call_init_failure_description(failure));
-                            }
-                        } else {
-                            @try {
-                                detected = typebanner_poll_in_imagent_remote_session(daemonSession);
-                            } @catch (NSException *e) {
-                                log_user("[TYPEBANNER] imagent poll threw: %s\n", e.reason.UTF8String);
-                            }
-                            if (detected.length == 0) {
-                                log_user("[TYPEBANNER] No daemon typing indicator detected on this poll.\n");
-                            }
-                            [daemonSession destroyRemoteCall];
+                    RemoteCallSession *mobileSession = [[RemoteCallSession alloc] initWithProcess:@"MobileSMS" useMigFilterBypass:NO];
+                    if (!mobileSession) {
+                        log_user("[TYPEBANNER] Messages.app is not running. Open Messages, then tap Test again.\n");
+                    } else {
+                        @try {
+                            detected = typebanner_poll_in_mobilesms_remote_session(mobileSession);
+                        } @catch (NSException *e) {
+                            log_user("[TYPEBANNER] MobileSMS poll threw: %s\n", e.reason.UTF8String);
                         }
+                        // If nothing was found, run a class-name discovery
+                        // walk so we can see what the cells actually are
+                        // and whether the selector name we're checking
+                        // ('showTypingIndicator') has been renamed on this
+                        // iOS build.
+                        if (detected.length == 0) {
+                            log_user("[TYPEBANNER] No typing indicator found via 'showTypingIndicator'. Running discovery walk to dump cell classes/selectors…\n");
+                            @try {
+                                typebanner_diagnose_in_mobilesms_remote_session(mobileSession);
+                            } @catch (NSException *e) {
+                                log_user("[TYPEBANNER] Diagnose threw: %s\n", e.reason.UTF8String);
+                            }
+                        }
+                        [mobileSession destroyRemoteCall];
                     }
 
                     if (detected.length > 0) {
@@ -6690,25 +4845,21 @@ void cyanide_present_contact(UIViewController *host)
                         log_user("[TYPEBANNER] Showing a one-shot demo banner so you can confirm the SpringBoard render path.\n");
                     }
 
-                    @synchronized (settings_rc_lock()) {
-                        RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard"
-                                                                                         useMigFilterBypass:NO
-                                                                                    firstExceptionTimeoutMS:TYPEBANNER_RC_FIRST_EXCEPTION_TIMEOUT_MS];
-                        if (!springboardSession) {
-                            log_user("[TYPEBANNER] SpringBoard not reachable; cannot show banner.\n");
-                        } else {
-                            bool ok = false;
-                            @try {
-                                NSString *label = detected.length > 0 ? detected : @"TypeBanner demo";
-                                ok = typebanner_show_in_springboard_remote_session(springboardSession, label);
-                            } @catch (NSException *e) {
-                                log_user("[TYPEBANNER] SpringBoard show threw: %s\n", e.reason.UTF8String);
-                            }
-                            log_user("[TYPEBANNER] show=%d. Banner auto-hides in 5s.\n", ok);
-                            sleep(5);
-                            @try { typebanner_hide_in_springboard_remote_session(springboardSession); } @catch (NSException *e) {}
-                            [springboardSession destroyRemoteCall];
+                    RemoteCallSession *springboardSession = [[RemoteCallSession alloc] initWithProcess:@"SpringBoard" useMigFilterBypass:NO];
+                    if (!springboardSession) {
+                        log_user("[TYPEBANNER] SpringBoard not reachable; cannot show banner.\n");
+                    } else {
+                        bool ok = false;
+                        @try {
+                            NSString *label = detected.length > 0 ? detected : @"TypeBanner demo";
+                            ok = typebanner_show_in_springboard_remote_session(springboardSession, label);
+                        } @catch (NSException *e) {
+                            log_user("[TYPEBANNER] SpringBoard show threw: %s\n", e.reason.UTF8String);
                         }
+                        log_user("[TYPEBANNER] show=%d. Banner auto-hides in 5s.\n", ok);
+                        sleep(5);
+                        @try { typebanner_hide_in_springboard_remote_session(springboardSession); } @catch (NSException *e) {}
+                        [springboardSession destroyRemoteCall];
                     }
 
                     if (liveLoopWasRunning) {
@@ -6728,22 +4879,6 @@ void cyanide_present_contact(UIViewController *host)
         return;
     }
 
-    if (indexPath.section == SectionThemer) {
-        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
-        if (![row[@"kind"] isEqualToString:@"button"]) return;
-        NSString *action = row[@"action"];
-        if ([action isEqualToString:@"themer-select-ios6"]) {
-            [self selectBuiltInIOS6Theme];
-        } else if ([action isEqualToString:@"themer-import"]) {
-            [self presentThemerImporter];
-        } else if ([action isEqualToString:@"themer-guide"]) {
-            [self presentThemerFormatGuide];
-        } else if ([action isEqualToString:@"themer-clear"]) {
-            [self clearSelectedTheme];
-        }
-        return;
-    }
-
     if (indexPath.section == SectionSBC) {
         NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
         if ([row[@"kind"] isEqualToString:@"button"]) {
@@ -6751,6 +4886,240 @@ void cyanide_present_contact(UIViewController *host)
             // In detail mode, SBC sits at table-view section 0.
             [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
                           withRowAnimation:UITableViewRowAnimationNone];
+        }
+    } else if (indexPath.section == SectionAtriaLite) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        if ([row[@"action"] isEqualToString:@"atria-reset"]) {
+            settings_reset_atrialite_defaults();
+            [self.tableView reloadSections:[NSIndexSet indexSetWithIndex:0]
+                          withRowAnimation:UITableViewRowAnimationNone];
+        } else if ([row[@"action"] isEqualToString:@"atria-apply"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSUserDefaults *d = NSUserDefaults.standardUserDefaults;
+                @synchronized (d) {
+                    bool ok = settings_apply_atrialite_from_defaults_locked(d);
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        NSString *msg = ok ? @"Atria Lite applied." : @"Apply failed — check log.";
+                        UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Atria Lite"
+                                                                                       message:msg
+                                                                                preferredStyle:UIAlertControllerStyleAlert];
+                        [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                        [self presentViewController:alert animated:YES completion:nil];
+                    });
+                }
+            });
+        }
+    } else if (indexPath.section == SectionCustomIcons) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        NSString *action = row[@"action"];
+
+        if ([action isEqualToString:@"custicons-apply"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = customiconslite_apply_in_session();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok
+                        ? @"Custom icons applied. If some icons did not change, make sure the PNG filenames match the bundle IDs exactly."
+                        : @"No matching icons found. Add PNGs to CustomIconsLite/ named by bundle ID.";
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Custom Icons" message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        } else if ([action isEqualToString:@"custicons-reset"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = customiconslite_reset_in_session();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok ? @"Icons restored to stock." : @"Nothing to restore.";
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Custom Icons" message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        }
+    } else if (indexPath.section == SectionIconShapes) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        NSString *action = row[@"action"];
+
+        if ([action isEqualToString:@"iconshapes-apply"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSUserDefaults *d = NSUserDefaults.standardUserDefaults;
+                NSString *shapeStr = [d stringForKey:kSettingsIconShapesShape] ?: @"Squircle";
+                int cornerPct = (int)[d integerForKey:kSettingsIconShapesCornerPct];
+                if (cornerPct == 0) cornerPct = 25;
+
+                // Map segment label to ISLShape enum
+                NSDictionary *shapeMap = @{
+                    @"Squircle": @(ISLShapeSquircle),
+                    @"Circle":   @(ISLShapeCircle),
+                    @"Square":   @(ISLShapeSquare),
+                    @"Rounded":  @(ISLShapeRoundedSquare),
+                    @"Diamond":  @(ISLShapeDiamond),
+                    @"Star":     @(ISLShapeStar),
+                    @"Shield":   @(ISLShapeShield),
+                    @"Teardrop": @(ISLShapeTeardrop),
+                };
+                ISLShape shape = (ISLShape)([shapeMap[shapeStr] integerValue]);
+                bool ok = iconshapeslite_apply_in_session(shape, cornerPct);
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok
+                        ? [NSString stringWithFormat:@"Shape \"%@\" applied to icon layers.", shapeStr]
+                        : @"No icon views found — make sure SpringBoard session is active and the home screen is visible.";
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Icon Shapes" message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        } else if ([action isEqualToString:@"iconshapes-reset"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = iconshapeslite_reset_in_session();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok ? @"Icons reset to stock squircle."
+                                       : @"No icon views found.";
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Icon Shapes" message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        }
+    } else if (indexPath.section == SectionDoodleLite) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        NSString *action = row[@"action"];
+
+        if ([action isEqualToString:@"doodle-start"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = doodlelite_start_in_session();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok ? @"Canvas installed. Lock your device to try it."
+                                       : @"Install failed — ensure SpringBoard session is active.";
+                    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Doodle Lite"
+                                                                               message:msg
+                                                                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        } else if ([action isEqualToString:@"doodle-record"]) {
+            // Set a flag in NSUserDefaults so the next stroke is saved as the template
+            [[NSUserDefaults standardUserDefaults] setBool:YES forKey:@"doodleliteRecordNext"];
+            [[NSUserDefaults standardUserDefaults] synchronize];
+            UIAlertController *a = [UIAlertController
+                alertControllerWithTitle:@"Doodle Lite"
+                message:@"Ready. Draw your gesture on the lock screen canvas — it will be saved as your unlock shape."
+                preferredStyle:UIAlertControllerStyleAlert];
+            [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+            [self presentViewController:a animated:YES completion:nil];
+        } else if ([action isEqualToString:@"doodle-stop"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = doodlelite_stop_in_session();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok ? @"Canvas removed." : @"Nothing to remove.";
+                    UIAlertController *a = [UIAlertController alertControllerWithTitle:@"Doodle Lite"
+                                                                               message:msg
+                                                                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+        }
+    } else if (indexPath.section == SectionSysColPatcher) {
+        NSDictionary *row = [self rowsForSection:indexPath.section][indexPath.row];
+        NSString *action = row[@"action"];
+
+        if ([action isEqualToString:@"syscol-apply"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                NSUserDefaults *d = NSUserDefaults.standardUserDefaults;
+
+                // Resolve preset
+                NSString *preset = [d stringForKey:kSettingsSysColPatcherPreset] ?: @"Stock";
+                NSString *customHex = [[d stringForKey:kSettingsSysColPatcherTint] ?: @"" stringByTrimmingCharactersInSet:NSCharacterSet.whitespaceCharacterSet];
+
+                // Map preset -> RGBA (light == dark for these presets)
+                SCPColor tint = {0.0f, 0.478f, 1.0f, 1.0f}; // default systemBlue
+                BOOL skip = NO;
+
+                if ([preset isEqualToString:@"Stock"]) {
+                    skip = YES; // Nothing to patch for Stock; just reset
+                } else if ([preset isEqualToString:@"Rose"]) {
+                    tint = (SCPColor){1.0f, 0.18f, 0.33f, 1.0f};
+                } else if ([preset isEqualToString:@"Mint"]) {
+                    tint = (SCPColor){0.20f, 0.78f, 0.60f, 1.0f};
+                } else if ([preset isEqualToString:@"Gold"]) {
+                    tint = (SCPColor){1.0f, 0.76f, 0.10f, 1.0f};
+                } else if ([preset isEqualToString:@"Lavender"]) {
+                    tint = (SCPColor){0.68f, 0.51f, 0.94f, 1.0f};
+                } else if ([preset isEqualToString:@"Custom"]) {
+                    // Parse RRGGBB or RRGGBBAA
+                    if (customHex.length >= 6) {
+                        unsigned int rv = 0, gv = 0, bv = 0, av = 255;
+                        NSScanner *sc = [NSScanner scannerWithString:customHex];
+                        unsigned int full = 0;
+                        if ([sc scanHexInt:&full]) {
+                            if (customHex.length >= 8) {
+                                rv = (full >> 24) & 0xFF;
+                                gv = (full >> 16) & 0xFF;
+                                bv = (full >>  8) & 0xFF;
+                                av = (full >>  0) & 0xFF;
+                            } else {
+                                rv = (full >> 16) & 0xFF;
+                                gv = (full >>  8) & 0xFF;
+                                bv = (full >>  0) & 0xFF;
+                            }
+                        }
+                        tint = (SCPColor){rv/255.0f, gv/255.0f, bv/255.0f, av/255.0f};
+                    } else {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            UIAlertController *a = [UIAlertController
+                                alertControllerWithTitle:@"Color Patcher"
+                                message:@"Enter a hex color in Custom tint hex field first (e.g. FF3366)."
+                                preferredStyle:UIAlertControllerStyleAlert];
+                            [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                            [self presentViewController:a animated:YES completion:nil];
+                        });
+                        return;
+                    }
+                }
+
+                bool ok = YES;
+                if (!skip) {
+                    ok = syscolpatcher_apply(tint, tint);
+                } else {
+                    // "Stock" preset: just restore original
+                    ok = syscolpatcher_reset();
+                }
+
+                NSString *msg = ok ? [NSString stringWithFormat:@"Color preset '%@' applied.", preset]
+                                   : @"Patch partially failed — check log for details.";
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Color Patcher"
+                        message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
+
+        } else if ([action isEqualToString:@"syscol-reset"]) {
+            dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+                bool ok = syscolpatcher_reset();
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NSString *msg = ok ? @"Colors restored to stock." : @"Reset had warnings — check log.";
+                    UIAlertController *a = [UIAlertController
+                        alertControllerWithTitle:@"Color Patcher"
+                        message:msg
+                        preferredStyle:UIAlertControllerStyleAlert];
+                    [a addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleDefault handler:nil]];
+                    [self presentViewController:a animated:YES completion:nil];
+                });
+            });
         }
     }
 }
