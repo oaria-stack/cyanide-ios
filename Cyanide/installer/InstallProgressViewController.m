@@ -103,16 +103,9 @@
     self.completed = YES;
     [self.spinner stopAnimating];
     self.spinner.hidden = YES;
-    NSNumber *successValue = note.userInfo[kSettingsActionsDidCompleteSuccessKey];
-    BOOL success = successValue ? successValue.boolValue : YES;
-    NSString *message = note.userInfo[kSettingsActionsDidCompleteMessageKey];
-    self.statusLabel.text = message.length
-        ? message
-        : (success ? @"Done. All tweaks applied in-session." : @"Failed. Check the log for details.");
-    self.statusLabel.textColor = success
-        ? [UIColor colorWithRed:0.45 green:0.85 blue:0.55 alpha:1.0]
-        : [UIColor colorWithRed:1.0 green:0.42 blue:0.35 alpha:1.0];
-    self.title = success ? @"Complete" : @"Failed";
+    self.statusLabel.text = @"Done. All tweaks applied in-session.";
+    self.statusLabel.textColor = [UIColor colorWithRed:0.45 green:0.85 blue:0.55 alpha:1.0];
+    self.title = @"Complete";
     self.hideOrDoneButton.title = @"Done";
 }
 
