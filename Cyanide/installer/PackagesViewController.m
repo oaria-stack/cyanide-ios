@@ -11,7 +11,6 @@
 
 static NSString * const kPackageCellID         = @"PackageCell";
 static NSString * const kGroupByCategoryDefault = @"installer.groupByCategory";
-static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
 
 @interface PackagesViewController () <UISearchResultsUpdating>
 @property (nonatomic, copy)   NSArray<Package *> *allPackagesSorted;
@@ -24,13 +23,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
 @end
 
 @implementation PackagesViewController
-
-- (BOOL)packageNeedsThemeBeforeInstall:(Package *)pkg
-{
-    return [pkg.identifier isEqualToString:@"com.darksword.themer"] &&
-           !pkg.isInstalled &&
-           !settings_themer_has_selected_theme();
-}
 
 - (void)viewDidLoad
 {
@@ -87,26 +79,13 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
 - (void)viewWillAppear:(BOOL)animated
 {
     [super viewWillAppear:animated];
-    [self refreshCatalog];
-    [self.tableView reloadData];
-}
-
-- (void)refreshCatalog
-{
-    // Re-fetch the catalog so toggles to the master experimental switch (which
-    // changes which packages PackageCatalog returns) show up the next time
-    // this view appears or the queue fires its change notification.
-    self.allPackagesSorted = [[PackageCatalog allPackages]
-        sortedArrayUsingComparator:^NSComparisonResult(Package *a, Package *b) {
-            return [a.name caseInsensitiveCompare:b.name];
-        }];
     [self rebuildFilteredData];
+    [self.tableView reloadData];
 }
 
 - (void)queueDidChange:(NSNotification *)note
 {
     if (!self.isViewLoaded) return;
-    [self refreshCatalog];
     [self.tableView reloadData];
 }
 
@@ -119,10 +98,10 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
 - (NSArray<NSDictionary *> *)tipsEntries
 {
     return @[
-        @{ @"icon":  @"wand.and.stars",
-           @"color": UIColor.systemPurpleColor,
-           @"title": @"What's new",
-           @"body":  @"• Home Layout Extras — extra padding and per-icon scaling for the home grid and dock\n• StatBar now has a CPU% slot and slimmer KB/MB-only network speed\n• Manual Check for Updates button in Settings → Quick Actions\n• Smoother respring overlay" },
+        @{ @"icon":  @"bolt.fill",
+           @"color": UIColor.systemYellowColor,
+           @"title": @"Axon Lite — still beta",
+           @"body":  @"Recent passes improved filter switching speed and fixed the duplicate-icon bug, but it's a beta and still has rough edges. Hit Contact below if you run into one." },
         @{ @"icon":  @"exclamationmark.triangle.fill",
            @"color": UIColor.systemOrangeColor,
            @"title": @"Don't force-quit Cyanide",
@@ -202,9 +181,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
     CGFloat headingGap       = 10.0;    // gap after heading
     CGFloat buttonGap        = 14.0;
     CGFloat buttonHeight     = 36.0;
-    CGFloat chevronSize      = 14.0;
-
-    BOOL expanded = [[NSUserDefaults standardUserDefaults] boolForKey:kTipsExpandedDefault];
 
     NSMutableArray<UIView *> *placed = [NSMutableArray array];
     CGFloat y = cardInset;
@@ -225,71 +201,44 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
         NSForegroundColorAttributeName: UIColor.labelColor,
     }]];
     heading.attributedText = headAS;
-    CGFloat headingWidth = contentWidth - chevronSize - 8.0;
-    CGSize headFit = [heading sizeThatFits:CGSizeMake(headingWidth, CGFLOAT_MAX)];
-    heading.frame = CGRectMake(cardInset, y, headingWidth, headFit.height);
+    CGSize headFit = [heading sizeThatFits:CGSizeMake(contentWidth, CGFLOAT_MAX)];
+    heading.frame = CGRectMake(cardInset, y, contentWidth, headFit.height);
     [placed addObject:heading];
+    y += headFit.height + headingGap;
 
-    // Trailing chevron indicates the section is collapsible.
-    UIImageSymbolConfiguration *chevCfg =
-        [UIImageSymbolConfiguration configurationWithPointSize:13.0 weight:UIImageSymbolWeightSemibold];
-    UIImageView *chevron = [[UIImageView alloc] initWithImage:
-        [[UIImage systemImageNamed:(expanded ? @"chevron.up" : @"chevron.down") withConfiguration:chevCfg]
-            imageWithTintColor:UIColor.tertiaryLabelColor renderingMode:UIImageRenderingModeAlwaysOriginal]];
-    chevron.contentMode = UIViewContentModeCenter;
-    chevron.frame = CGRectMake(cardInset + contentWidth - chevronSize, y, chevronSize, headFit.height);
-    [placed addObject:chevron];
-
-    CGFloat headingRowHeight = headFit.height;
-    y += headingRowHeight;
-
-    if (expanded) {
-        y += headingGap;
-
-        // Tip rows
-        NSArray<NSDictionary *> *entries = [self tipsEntries];
-        for (NSDictionary *entry in entries) {
-            UIView *row = [self buildTipRowWithIcon:entry[@"icon"]
-                                              color:entry[@"color"]
-                                              title:entry[@"title"]
-                                               body:entry[@"body"]
-                                              width:contentWidth];
-            CGRect f = row.frame;
-            f.origin = CGPointMake(cardInset, y);
-            row.frame = f;
-            [placed addObject:row];
-            y += f.size.height + rowGap;
-        }
-        y -= rowGap;        // last row didn't need trailing gap
-        y += buttonGap;     // explicit gap before the button
-
-        // Contact button
-        UIButtonConfiguration *cfg = [UIButtonConfiguration tintedButtonConfiguration];
-        cfg.title = @"Contact zeroxjf";
-        cfg.image = [UIImage systemImageNamed:@"envelope.fill"];
-        cfg.imagePadding = 6.0;
-        cfg.imagePlacement = NSDirectionalRectEdgeLeading;
-        cfg.cornerStyle = UIButtonConfigurationCornerStyleMedium;
-        __weak typeof(self) weakSelf = self;
-        UIButton *contact = [UIButton buttonWithConfiguration:cfg
-                                                primaryAction:[UIAction actionWithHandler:^(UIAction *_) {
-            typeof(self) strongSelf = weakSelf;
-            if (strongSelf) cyanide_present_contact(strongSelf);
-        }]];
-        contact.frame = CGRectMake(cardInset, y, contentWidth, buttonHeight);
-        [placed addObject:contact];
-        y += buttonHeight;
+    // Tip rows
+    NSArray<NSDictionary *> *entries = [self tipsEntries];
+    for (NSDictionary *entry in entries) {
+        UIView *row = [self buildTipRowWithIcon:entry[@"icon"]
+                                          color:entry[@"color"]
+                                          title:entry[@"title"]
+                                           body:entry[@"body"]
+                                          width:contentWidth];
+        CGRect f = row.frame;
+        f.origin = CGPointMake(cardInset, y);
+        row.frame = f;
+        [placed addObject:row];
+        y += f.size.height + rowGap;
     }
+    y -= rowGap;        // last row didn't need trailing gap
+    y += buttonGap;     // explicit gap before the button
 
-    y += cardInset;     // final bottom padding inside the card
-
-    // Invisible tap target over the heading row; added last so it's on top.
-    UIButton *tap = [UIButton buttonWithType:UIButtonTypeCustom];
-    tap.backgroundColor = UIColor.clearColor;
-    CGFloat tapHeight = MAX(headingRowHeight, 44.0);
-    tap.frame = CGRectMake(cardInset, cardInset, contentWidth, tapHeight);
-    [tap addTarget:self action:@selector(toggleTipsExpanded) forControlEvents:UIControlEventTouchUpInside];
-    [placed addObject:tap];
+    // Contact button
+    UIButtonConfiguration *cfg = [UIButtonConfiguration tintedButtonConfiguration];
+    cfg.title = @"Contact zeroxjf";
+    cfg.image = [UIImage systemImageNamed:@"envelope.fill"];
+    cfg.imagePadding = 6.0;
+    cfg.imagePlacement = NSDirectionalRectEdgeLeading;
+    cfg.cornerStyle = UIButtonConfigurationCornerStyleMedium;
+    __weak typeof(self) weakSelf = self;
+    UIButton *contact = [UIButton buttonWithConfiguration:cfg
+                                            primaryAction:[UIAction actionWithHandler:^(UIAction *_) {
+        typeof(self) strongSelf = weakSelf;
+        if (strongSelf) cyanide_present_contact(strongSelf);
+    }]];
+    contact.frame = CGRectMake(cardInset, y, contentWidth, buttonHeight);
+    [placed addObject:contact];
+    y += buttonHeight + cardInset;
 
     UIView *card = [[UIView alloc] initWithFrame:CGRectMake(horizontalMargin,
                                                             topPadding,
@@ -305,13 +254,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
     [container addSubview:card];
 
     self.tableView.tableHeaderView = container;
-}
-
-- (void)toggleTipsExpanded
-{
-    NSUserDefaults *ud = [NSUserDefaults standardUserDefaults];
-    [ud setBool:![ud boolForKey:kTipsExpandedDefault] forKey:kTipsExpandedDefault];
-    [self installTipsHeader];
 }
 
 - (void)viewDidLayoutSubviews
@@ -570,13 +512,8 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
                         textColor:[UIColor systemGreenColor]];
     }
     if (pkg.isInstallDisabled) {
-        return [self pillWithText:@"DISABLED"
+        return [self pillWithText:@"BUGGY"
                        background:[[UIColor systemRedColor] colorWithAlphaComponent:0.16]
-                        textColor:[UIColor systemRedColor]];
-    }
-    if (pkg.experimental) {
-        return [self pillWithText:@"EXPERIMENTAL"
-                       background:[[UIColor systemRedColor] colorWithAlphaComponent:0.18]
                         textColor:[UIColor systemRedColor]];
     }
     if ([pkg.category caseInsensitiveCompare:@"Beta"] == NSOrderedSame) {
@@ -691,10 +628,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
         title  = @"Uninstall";
         color  = [UIColor systemRedColor];
         symbol = @"trash";
-    } else if ([self packageNeedsThemeBeforeInstall:pkg]) {
-        title  = @"Select Theme";
-        color  = self.view.tintColor;
-        symbol = @"paintpalette";
     } else {
         title  = @"Queue";
         color  = self.view.tintColor;
@@ -711,11 +644,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
             [self presentConfigureAlertForPackage:pkg];
             return;
         }
-        if (isInstall && [self packageNeedsThemeBeforeInstall:pkg]) {
-            done(YES);
-            [self presentThemeRequiredAlertForPackage:pkg];
-            return;
-        }
         [q toggleForPackage:pkg];
         done(YES);
     }];
@@ -725,47 +653,6 @@ static NSString * const kTipsExpandedDefault    = @"installer.tipsExpanded";
     UISwipeActionsConfiguration *cfg = [UISwipeActionsConfiguration configurationWithActions:@[action]];
     cfg.performsFirstActionWithFullSwipe = YES;
     return cfg;
-}
-
-- (void)presentThemeRequiredAlertForPackage:(Package *)pkg
-{
-    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"Select a Theme"
-                                                                   message:@"Cyanide Themer needs a selected theme before it can be queued. Choose iOS 6 Theme or import a custom theme first."
-                                                            preferredStyle:UIAlertControllerStyleAlert];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Open Theme Settings"
-                                             style:UIAlertActionStyleDefault
-                                           handler:^(UIAlertAction *_) {
-        [self navigateToSettingsSectionForPackage:pkg];
-    }]];
-    [alert addAction:[UIAlertAction actionWithTitle:@"Cancel"
-                                             style:UIAlertActionStyleCancel
-                                           handler:nil]];
-    [self presentViewController:alert animated:YES completion:nil];
-}
-
-- (void)navigateToSettingsSectionForPackage:(Package *)pkg
-{
-    UITabBarController *tab = self.tabBarController;
-    NSUInteger settingsIndex = NSNotFound;
-    UINavigationController *settingsNav = nil;
-    for (NSUInteger i = 0; i < tab.viewControllers.count; i++) {
-        UIViewController *vc = tab.viewControllers[i];
-        if ([vc.tabBarItem.title isEqualToString:@"Settings"]) {
-            settingsIndex = i;
-            if ([vc isKindOfClass:UINavigationController.class]) {
-                settingsNav = (UINavigationController *)vc;
-            }
-            break;
-        }
-    }
-    if (settingsIndex == NSNotFound || !settingsNav) return;
-
-    [settingsNav popToRootViewControllerAnimated:NO];
-    SettingsViewController *bundle = [[SettingsViewController alloc] initWithUnderlyingSection:pkg.settingsSection
-                                                                                   bundleTitle:pkg.name];
-    bundle.installerReturnPackageName = pkg.name;
-    [settingsNav pushViewController:bundle animated:NO];
-    tab.selectedIndex = settingsIndex;
 }
 
 - (void)presentConfigureAlertForPackage:(Package *)pkg
