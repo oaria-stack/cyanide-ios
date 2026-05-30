@@ -32,19 +32,6 @@ typedef struct {
     uint32_t __flags; /* Flags describing structure format */
 } arm_thread_state64_internal;
 
-typedef enum {
-    RemoteCallInitFailureNone = 0,
-    RemoteCallInitFailureKRWUnavailable,
-    RemoteCallInitFailureProcessMissing,
-    RemoteCallInitFailureInvalidTask,
-    RemoteCallInitFailureExceptionPort,
-    RemoteCallInitFailureTaskGuard,
-    RemoteCallInitFailureLocalThread,
-    RemoteCallInitFailureNoTargetThreads,
-    RemoteCallInitFailureFirstExceptionTimeout,
-    RemoteCallInitFailureOther,
-} RemoteCallInitFailure;
-
 mach_port_t create_exception_port(void);
 int disable_excguard_kill(uint64_t task);
 // One-shot override consumed by the next call to init_remote_call. When
@@ -54,8 +41,6 @@ int disable_excguard_kill(uint64_t task);
 // need to target a specific one. Reset to 0 by init_remote_call.
 extern uint64_t g_RC_targetProcOverride;
 int init_remote_call(const char* process, bool useMigFilterBypass);
-int init_remote_call_with_first_exception_timeout(const char* process, bool useMigFilterBypass, int firstExceptionTimeoutMS);
-int init_remote_call_original_thread_only_with_first_exception_timeout(const char* process, bool useMigFilterBypass, int firstExceptionTimeoutMS);
 uint64_t do_remote_call_stable(int timeout, const char *name, uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4, uint64_t x5, uint64_t x6, uint64_t x7);
 uint64_t do_remote_call_stable_addr(int timeout, uint64_t pcAddr, const char *name, uint64_t x0, uint64_t x1, uint64_t x2, uint64_t x3, uint64_t x4, uint64_t x5, uint64_t x6, uint64_t x7);
 void sign_state(uint64_t signingThread, arm_thread_state64_internal *state, uint64_t pc, uint64_t lr);
@@ -74,11 +59,6 @@ int destroy_remote_call(void);
 // 100s on its munmap/pthread_exit calls into a vanished trojan thread.
 void abandon_remote_call(void);
 bool remote_call_has_local_state(void);
-bool remote_call_current_success(void);
-int remote_call_set_stable_timeout_floor_ms(int timeoutMS);
-RemoteCallInitFailure remote_call_last_init_failure(void);
-uint32_t remote_call_last_init_failure_pid(void);
-const char *remote_call_init_failure_description(RemoteCallInitFailure failure);
 
 #ifdef __OBJC__
 @class RemotePointer;
@@ -90,13 +70,6 @@ const char *remote_call_init_failure_description(RemoteCallInitFailure failure);
 @property(nonatomic, readonly) int pid;
 
 - (instancetype)initWithProcess:(NSString *)process useMigFilterBypass:(BOOL)useMigFilterBypass;
-- (instancetype)initWithProcess:(NSString *)process
-              useMigFilterBypass:(BOOL)useMigFilterBypass
-         firstExceptionTimeoutMS:(int)firstExceptionTimeoutMS;
-- (instancetype)initWithProcess:(NSString *)process
-              useMigFilterBypass:(BOOL)useMigFilterBypass
-         firstExceptionTimeoutMS:(int)firstExceptionTimeoutMS
-              originalThreadOnly:(BOOL)originalThreadOnly;
 - (uint64_t)doRemoteCallStableWithTimeout:(int)timeout
                              functionName:(const char *)name
                                        x0:(uint64_t)x0
