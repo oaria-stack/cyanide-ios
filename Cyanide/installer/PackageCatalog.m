@@ -5,7 +5,6 @@
 
 #import "PackageCatalog.h"
 #import "../SettingsViewController.h"
-#import "../PatreonAuth.h"
 
 @implementation PackageCatalog
 
@@ -13,30 +12,13 @@
 // (kept in sync — must match the underlying section indices used for the
 // detail-mode SettingsViewController push).
 static const NSInteger kSecSBC          = 4;
-static const NSInteger kSecStatBar      = 5;
-static const NSInteger kSecRSSI         = 6;
-static const NSInteger kSecPowercuff    = 9;
-static const NSInteger kSecLayoutExtras = 11;
+static const NSInteger kSecAtriaLite    = 5;
+static const NSInteger kSecStatBar      = 6;
+static const NSInteger kSecRSSI         = 7;
+static const NSInteger kSecPowercuff    = 10;
 static const NSInteger kSecNanoRegistry = 12;
-static const NSInteger kSecThemer       = 13;
 
 + (NSArray<Package *> *)allPackages
-{
-    NSArray<Package *> *full = [self allPackagesIncludingExperimental];
-    BOOL experimentalOn = [[NSUserDefaults standardUserDefaults]
-                            boolForKey:kSettingsExperimentalTweaksEnabled]
-                            && cyanide_is_patron();
-    if (experimentalOn) return full;
-
-    NSMutableArray<Package *> *out = [NSMutableArray arrayWithCapacity:full.count];
-    for (Package *p in full) {
-        if (p.experimental) continue;
-        [out addObject:p];
-    }
-    return out;
-}
-
-+ (NSArray<Package *> *)allPackagesIncludingExperimental
 {
     static NSArray<Package *> *list;
     static dispatch_once_t once;
@@ -59,17 +41,17 @@ static const NSInteger kSecThemer       = 13;
         Package *signal = [[Package alloc] initWithIdentifier:@"com.darksword.rssidisplay"
                                            name:@"Signal Readouts"
                                shortDescription:@"RSRP dBm on cellular, bar count on WiFi"
-                                longDescription:@"Replaces the signal-strength glyphs in the status bar with live numeric readouts: RSRP in dBm for cellular, and the active bar count for WiFi. Updates roughly once per second.\n\nToggle WiFi-only or cellular-only in the Settings tab.\n\nIn development: the live RemoteCall refresh interferes with other SpringBoard tweaks and the readouts may not even render reliably. Only available while Experimental Tweaks is enabled in Settings."
+                                longDescription:@"Replaces the signal-strength glyphs in the status bar with live numeric readouts: RSRP in dBm for cellular, and the active bar count for WiFi. Updates roughly once per second.\n\nToggle WiFi-only or cellular-only in the Settings tab.\n\nBuggy: this currently interferes with other tweaks too much. It is a work in progress and is disabled for now."
                                         version:version
                                          author:@"zeroxjf"
-                                       category:@"Experimental"
+                                       category:@"Beta"
                                      symbolName:@"antenna.radiowaves.left.and.right"
                                            kind:PackageInstallKindToggle
                                      enabledKey:kSettingsRSSIDisplayEnabled
                                           isNew:NO];
         signal.settingsSection = kSecRSSI;
-        signal.experimental = YES;
-        signal.unstableWarning = @"⚠️ Experimental: in-development and may not work at all. The live status-bar refresh interferes with other SpringBoard tweaks and can drop readouts entirely. Turning this on adds risk with no guaranteed feature in return.";
+        signal.unstableWarning = @"Buggy: Signal Readouts currently interferes with other tweaks too much. It is a work in progress and is disabled for now.";
+        signal.installDisabledReason = signal.unstableWarning;
 
         Package *sbc = [[Package alloc] initWithIdentifier:@"com.darksword.sbcustomizer"
                                            name:@"SBCustomizer"
@@ -87,7 +69,7 @@ static const NSInteger kSecThemer       = 13;
         Package *powercuff = [[Package alloc] initWithIdentifier:@"com.darksword.powercuff"
                                            name:@"Powercuff"
                                shortDescription:@"Underclock the CPU/GPU thermal pressure"
-                                longDescription:@"Drives thermalmonitord with synthetic thermal pressure to underclock the CPU and GPU. Useful for cooling-sensitive workloads or extending runtime under load. Effects persist until reboot.\n\nNominal is the daily-use default. Light, Moderate, and Heavy intentionally underclock the CPU more, so lag and slower app launches mean it is working as intended. Those levels can be too slow for comfortable day-to-day use, especially on older devices.\n\nPick a level in the Settings tab."
+                                longDescription:@"Drives thermalmonitord with synthetic thermal pressure to underclock the CPU and GPU. Useful for cooling-sensitive workloads or extending runtime under load. Effects persist until reboot.\n\nPick a level (nominal/light/moderate/heavy) in the Settings tab."
                                         version:version
                                          author:@"rpetrich"
                                        category:@"Performance"
@@ -108,81 +90,52 @@ static const NSInteger kSecThemer       = 13;
                                            kind:PackageInstallKindToggle
                                      enabledKey:kSettingsAxonLiteEnabled
                                           isNew:YES];
-        axon.unstableWarning = @"⚠️ Experimental: work-in-progress. Expect SpringBoard crashes, dropped notifications, layout glitches, and breakage between Cyanide builds. Don't rely on it for anything important.";
+        axon.unstableWarning = @"Heavily buggy work-in-progress. Expect SpringBoard crashes, dropped notifications, layout glitches, and breakage between Cyanide builds. Don't rely on it for anything important.";
 
-        Package *typeBanner = [[Package alloc] initWithIdentifier:@"com.darksword.typebanner"
-                                           name:@"TypeBanner"
-                               shortDescription:@"iMessage typing banner under the Dynamic Island"
-                                longDescription:@"Port of TypeMillennium. Shows a pill banner just below the Dynamic Island whenever the active Messages conversation list shows a typing indicator.\n\nv1 limitation: detection runs against the Messages app's own view hierarchy via RemoteCall, so it only fires while Messages.app is running. The original tweak's system-wide imagent hook requires code injection, which is not available in this sandboxed environment without a code-signing bypass.\n\nNo extra configuration."
+        Package *snowBoard = [[Package alloc] initWithIdentifier:@"com.darksword.snowboardlite"
+                                           name:@"SnowBoard Lite"
+                               shortDescription:@"Tethered custom icons from bundled PNGs"
+                                longDescription:@"Loads PNG files from Cyanide's bundled SnowBoardLiteTheme folder and swaps matching live SpringBoard icon images by bundle identifier. During Apply it briefly reveals App Library to force more icon views to load before scanning.\n\nName files like com.apple.MobileSMS.png or com.apple.Preferences.png. Changes are in-memory only and reset after SpringBoard rebuilds its views, respring, reboot, or cleanup."
                                         version:version
                                          author:@"zeroxjf"
-                                       category:@"Experimental"
-                                     symbolName:@"ellipsis.bubble.fill"
+                                       category:@"Home Screen"
+                                     symbolName:@"snowflake"
                                            kind:PackageInstallKindToggle
-                                     enabledKey:kSettingsTypeBannerEnabled
+                                     enabledKey:kSettingsSnowBoardLiteEnabled
                                           isNew:YES];
-        typeBanner.experimental = YES;
-        typeBanner.unstableWarning = @"⚠️ Experimental: extremely unstable and risky. Polls MobileSMS over RemoteCall every ~1.5s, opens SpringBoard sessions on state change, and is known to crash SpringBoard. Detection only fires while Messages.app is running. Battery cost is non-trivial.";
+        snowBoard.unstableWarning = @"Experimental tethered theming. It only affects SpringBoard icon views that are loaded during the Apply pass and resets when SpringBoard rebuilds its views.";
 
-        Package *stageStrip = [[Package alloc] initWithIdentifier:@"com.darksword.stagestrip"
-                                           name:@"Dynamic Stage Lite"
-                               shortDescription:@"Two floating app windows, iPad-style"
-                                longDescription:
-            @"Run two apps as floating, resizable windows on top of SpringBoard.\n\n"
-            @"Based on Dynamic Stage by tomt000 — the original Stage Manager-for-iPhone tweak. Dynamic Stage Lite is an independent, RemoteCall-only re-implementation of the split-view + scene-hosting design; no original tweak code or assets are reused. Go check out tomt000's full version on Havoc.\n\n"
-            @"How to use:\n"
-            @"• Tap the dot in the bottom-right corner of the screen to open the picker.\n"
-            @"• Tap two apps to launch them side-by-side.\n"
-            @"• Drag the top bar to move; drag any corner to resize.\n"
-            @"• X in the top-left of a window closes it.\n"
-            @"• Gear in the picker tray jumps back to Cyanide settings.\n\n"
-            @"First Run is slow. The picker has to enumerate every installed app over RemoteCall and build a tile for each one — expect 1-2 minutes on a fresh install. Re-Runs reuse the cache and are fast.\n\n"
-            @"Rough edges:\n"
-            @"• Touch routing into hosted apps isn't wired — windows are for viewing/switching, not scrolling or typing.\n"
-            @"• Auto-close on full-screen launch is not yet hooked up; close manually with the X.\n"
-            @"• Gestures may stutter while the App Library is still filling in."
+        Package *atria = [[Package alloc] initWithIdentifier:@"com.darksword.atrialite"
+                                           name:@"Atria Lite"
+                               shortDescription:@"Tethered home-screen layout controls"
+                                longDescription:@"Applies Atria-inspired home-screen layout controls through SpringBoard's live icon layout APIs: dock icon count, home grid rows/columns, icon label visibility, loaded-icon scale, and vertical icon offset.\n\nThis is still a tethered lightweight port, not the full Atria per-icon layout editor. It resets after SpringBoard reloads its views, respring, reboot, or cleanup."
                                         version:version
                                          author:@"zeroxjf"
-                                       category:@"Experimental"
-                                     symbolName:@"sidebar.left"
-                                           kind:PackageInstallKindToggle
-                                     enabledKey:kSettingsStageStripEnabled
-                                          isNew:YES];
-        stageStrip.experimental = YES;
-        stageStrip.unstableWarning = @"⚠️ Early development. First Run takes 1-2 minutes because the picker enumerates every installed app and builds a tile per app. Re-Runs are fast. Touch routing into hosted windows isn't wired yet, so scrolling/typing inside a floating window may not work.";
-
-        Package *themer = [[Package alloc] initWithIdentifier:@"com.darksword.themer"
-                                           name:@"Cyanide Themer"
-                               shortDescription:@"Per-bundle icon theme engine"
-                                longDescription:@"Replaces stock app icons by walking SpringBoard's SBIconView hierarchy and swapping each icon's image with a PNG matched on the app's bundle identifier.\n\nPick a theme in Settings > Cyanide Themer. Cyanide ships with iOS 6 Theme, using icons from zagnut531/iOS-6-Icons: https://github.com/zagnut531/iOS-6-Icons. You can also import a custom folder of <bundleID>.png files or a binary plist mapping bundle IDs to PNG data.\n\nApplied at Run; not persisted across respring. The current build also seeds SpringBoard's icon cache and rounds imported PNGs before upload so icons survive common home-screen relayouts more cleanly."
-                                        version:version
-                                         author:@"zeroxjf"
-                                       category:@"Beta"
-                                     symbolName:@"paintpalette.fill"
-                                          kind:PackageInstallKindToggle
-                                     enabledKey:kSettingsThemerEnabled
-                                          isNew:YES];
-        themer.experimental = NO;
-        themer.settingsSection = kSecThemer;
-        themer.unstableWarning = @"⚠️ Beta: icon theming works but RemoteCall-backed changes may need re-applying after a respring or SpringBoard restart. Pick a theme in Settings > Cyanide Themer before running.";
-
-        Package *layoutExtras = [[Package alloc] initWithIdentifier:@"com.darksword.layoutextras"
-                                           name:@"Home Layout Extras"
-                               shortDescription:@"Extra home/dock padding and per-icon scaling"
-                                longDescription:@"Adds extra padding around the home grid and the dock, and scales icons up or down. Stacks on top of SBCustomizer.\n\nDial in left/right/top/bottom padding for the home screen, horizontal padding for the dock, and home/dock icon scale in the Settings tab. Defaults match stock (zero padding, 100% scale).\n\nApplied at Run; not persisted across respring.\n\niOS 18: mutates the SBIconController layout configuration directly (upstream kolbicz path).\niOS 26: walks the live SBIconListView/SBIconView hierarchy and adjusts frames + iconImageInfo per icon (the iOS 26 layout class is read-only). One-shot at Run on iOS 26 — rotation/page swipe may force iOS 26's auto-layout to re-fit, so re-Run if that happens."
-                                        version:version
-                                         author:@"kolbicz"
                                        category:@"Home Screen Layout"
-                                     symbolName:@"square.dashed.inset.filled"
+                                     symbolName:@"rectangle.grid.3x2.fill"
                                            kind:PackageInstallKindToggle
-                                     enabledKey:kSettingsLayoutExtrasEnabled
+                                     enabledKey:kSettingsAtriaLiteEnabled
                                           isNew:YES];
-        layoutExtras.settingsSection = kSecLayoutExtras;
+        atria.unstableWarning = @"Experimental layout controls. It can conflict with SBCustomizer; if both are enabled, Atria Lite applies after SBCustomizer.";
+        atria.settingsSection = kSecAtriaLite;
+
+        // Package *typeBanner = [[Package alloc] initWithIdentifier:@"com.darksword.typebanner"
+        //                                    name:@"TypeBanner"
+        //                        shortDescription:@"iMessage typing banner under the Dynamic Island"
+        //                         longDescription:@"Port of TypeMillennium. Shows a pill banner just below the Dynamic Island whenever the active Messages conversation list shows a typing indicator.\n\nv1 limitation: detection runs against the Messages app's own view hierarchy via RemoteCall, so it only fires while Messages.app is running. The original tweak's system-wide imagent hook requires code injection, which is not available in this sandboxed environment without a code-signing bypass.\n\nNo extra configuration."
+        //                                 version:version
+        //                                  author:@"zeroxjf"
+        //                                category:@"Beta"
+        //                              symbolName:@"ellipsis.bubble.fill"
+        //                                    kind:PackageInstallKindToggle
+        //                              enabledKey:kSettingsTypeBannerEnabled
+        //                                   isNew:YES];
+        // typeBanner.unstableWarning = @"Detection is MobileSMS-only — typing events fire only while Messages.app is running. Polling Messages over RemoteCall every ~1.5s; battery cost is non-trivial.";
 
         Package *nanoRegistry = [[Package alloc] initWithIdentifier:@"com.darksword.nanoregistry"
                                            name:@"Watch Pairing Override"
-                               shortDescription:@"Pair a newer watch or revive an older one"
-                                longDescription:@"Changes the watchOS pairing range saved on this iPhone.\n\nMost people should use watchOS Range 99/23/10/6 in Settings, then apply the override. These are pairing protocol generations, not Apple Watch model numbers. 99 raises the watchOS pairing ceiling. 23 keeps the generation-23 setup protocol accepted. 10 and 6 leave the legacy chip and multi-watch floors at their normal values.\n\nApple Watch Ultra 3 cannot pair on iOS versions below 26 at this time.\n\nRespring or reboot after installing or removing the override before trying to pair."
+                               shortDescription:@"Pair newer watchOS on this iOS / revive older watches"
+                                longDescription:@"Edits com.apple.NanoRegistry.plist so NRPairingCompatibilityVersionInfo accepts a watch whose pairing-compatibility version is otherwise gated by this iOS.\n\nFour numeric knobs (live in the Settings tab): the upper gate (raise to pair a newer watch) and three lower gates (lower only to revive an older watch).\n\nInstalling writes the override using the four numbers currently configured. Uninstalling removes them. A respring or reboot is required afterwards so cfprefsd drops its cached copy.\n\nApple defaults: iOS 18 uses 24/23/10/6, iOS 26 uses 25/24/10/6."
                                         version:version
                                          author:@"zeroxjf"
                                        category:@"Beta"
@@ -195,7 +148,8 @@ static const NSInteger kSecThemer       = 13;
         list = @[
             statBar,
             sbc,
-            layoutExtras,
+            atria,
+            snowBoard,
             powercuff,
 
             [[Package alloc] initWithIdentifier:@"com.darksword.disable-app-library"
@@ -274,9 +228,7 @@ static const NSInteger kSecThemer       = 13;
             signal,
             axon,
             nanoRegistry,
-            typeBanner,
-            stageStrip,
-            themer,
+            // typeBanner,
         ];
     });
     return list;
@@ -285,9 +237,9 @@ static const NSInteger kSecThemer       = 13;
 + (NSArray<NSString *> *)categoriesInOrder
 {
     NSArray<NSString *> *preferred = @[
-        @"Experimental",
         @"Beta",
         @"Status Bar",
+        @"Home Screen",
         @"Home Screen Layout",
         @"Performance",
         @"System Updates",
